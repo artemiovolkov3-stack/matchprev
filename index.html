@@ -1,0 +1,2344 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>MatchPrev</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f5f0; color: #1a1a1a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; height: 100vh; overflow: hidden; }
+
+/* HEADER */
+.hdr { background: #fff; border-bottom: 1px solid #e5e5e0; padding: 0 20px; height: 52px; display: flex; align-items: center; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.logo { font-size: 16px; font-weight: 800; color: #1a1a1a; letter-spacing: -.4px; }
+.logo span { color: #d97706; }
+#st { font-size: 12px; color: #9ca3af; margin-left: auto; }
+
+/* LAYOUT */
+.wrap { display: grid; grid-template-columns: 260px 1fr 300px; height: calc(100vh - 92px); }
+
+/* SIDEBAR */
+.sb { background: #fff; border-right: 1px solid #e5e5e0; display: flex; flex-direction: column; overflow: hidden; }
+.sbt { padding: 12px; border-bottom: 1px solid #e5e5e0; flex-shrink: 0; }
+.btnld { background: #d97706; color: #fff; border: none; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; font-family: inherit; transition: background .15s; }
+.btnld:hover { background: #b45309; }
+.btnld:disabled { opacity: .5; cursor: default; }
+.ml { flex: 1; overflow-y: auto; }
+.lg-hdr { padding: 8px 14px 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #9ca3af; background: #f9f9f6; border-bottom: 1px solid #e5e5e0; position: sticky; top: 0; z-index: 2; }
+.mi { padding: 10px 14px; border-bottom: 1px solid #f0f0ec; cursor: pointer; transition: background .1s; }
+.mi:hover { background: #fafaf7; }
+.mi.act { background: #fffbeb; border-left: 3px solid #d97706; padding-left: 11px; }
+.mi-t { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1a1a1a; }
+.mi-s { font-size: 11px; color: #9ca3af; }
+.mi-row { display: flex; align-items: center; gap: 4px; }
+.mi-row .mi-t { flex: 1; min-width: 0; }
+.mi-fav { background: none; border: none; cursor: pointer; font-size: 13px; color: #d1d5db; padding: 2px 4px; line-height: 1; flex-shrink: 0; transition: color .15s; }
+.mi-fav:hover, .mi-fav.active { color: #d97706; }
+.tab-fav { display: none; }
+.tab-fav.show { display: inline; }
+.mn { padding: 20px 14px; text-align: center; color: #c4c4bc; font-size: 12px; line-height: 1.9; }
+
+/* MAIN */
+.main { overflow-y: auto; padding: 24px; background: #f5f5f0; }
+.emp { display: flex; align-items: center; justify-content: center; height: 100%; color: #c4c4bc; font-size: 14px; }
+
+/* Match card */
+.mc { background: #fff; border: 1px solid #e5e5e0; border-radius: 12px; padding: 20px 22px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.mc-lg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.mc-lg-logo { width: 20px; height: 20px; object-fit: contain; }
+.mc-lg-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #d97706; }
+.mc-t { font-size: 22px; font-weight: 800; margin-bottom: 12px; line-height: 1.2; letter-spacing: -.4px; color: #1a1a1a; }
+.mc-m { display: flex; flex-wrap: wrap; gap: 14px; }
+.mc-chip { font-size: 13px; color: #6b7280; display: flex; align-items: center; gap: 5px; }
+.mc-chip b { color: #374151; font-weight: 600; }
+
+/* Action buttons */
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.bp { background: #eff6ff; border: 2px solid #3b82f6; color: #2563eb; border-radius: 10px; padding: 15px 10px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all .15s; font-family: inherit; }
+.bp:hover { background: #3b82f6; color: #fff; }
+.bp:disabled { opacity: .4; cursor: default; pointer-events: none; }
+.bf { background: #f0fdf4; border: 2px solid #22c55e; color: #16a34a; border-radius: 10px; padding: 15px 10px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all .15s; font-family: inherit; }
+.bf:hover { background: #22c55e; color: #fff; }
+.bf:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+/* Result card */
+.rc { background: #fff; border: 1px solid #e5e5e0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.rh { padding: 11px 16px; border-bottom: 1px solid #e5e5e0; display: flex; align-items: center; gap: 8px; background: #fafafa; }
+.rl { font-size: 12px; font-weight: 700; color: #6b7280; }
+.rbtn { background: #fff; border: 1px solid #e5e5e0; color: #6b7280; border-radius: 6px; padding: 5px 11px; font-size: 11px; cursor: pointer; white-space: nowrap; transition: all .15s; font-family: inherit; font-weight: 500; }
+.rbtn:hover { color: #1a1a1a; border-color: #9ca3af; background: #f9f9f9; }
+.rbtn.save-btn { color: #d97706; border-color: #fde68a; background: #fffbeb; }
+.rbtn.save-btn:hover { background: #fef3c7; }
+.rbtn.saved { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+.rbtn.copied { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+
+/* Result body — editable text area */
+.rb { padding: 22px 24px; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.8; color: #1a1a1a; max-height: 60vh; overflow-y: auto; outline: none; min-height: 80px; }
+.rb:focus { background: #fefefe; }
+.rb:empty:before { content: 'Текст появится после генерации. Можно писать здесь вручную.'; color: #c4c4bc; font-style: italic; pointer-events: none; }
+.rb h1 { font-size: 20px; font-weight: 800; margin-bottom: 16px; line-height: 1.3; color: #111; letter-spacing: -.3px; }
+.rb h3 { font-size: 14px; font-weight: 700; color: #1a1a1a; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e5e0; }
+.rb p { margin-bottom: 12px; color: #374151; }
+.rb strong { font-weight: 700; color: #1a1a1a; }
+
+/* Edits note */
+.edits-note { padding: 8px 16px; border-top: 1px solid #fde68a; background: #fffbeb; font-size: 11px; color: #92400e; }
+
+/* Tabs */
+.tabs { display: flex; gap: 5px; padding: 9px 14px; border-bottom: 1px solid #e5e5e0; background: #fafafa; }
+.tab { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid transparent; color: #9ca3af; font-family: inherit; transition: all .15s; }
+.tab:hover { color: #6b7280; }
+.tab.tp { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+.tab.tf { border-color: #86efac; color: #16a34a; background: #f0fdf4; }
+
+/* Critic */
+.critic-row { padding: 9px 16px; border-top: 1px solid #e5e5e0; font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 8px; background: #fafafa; }
+
+/* Loading */
+.ld { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 40px; }
+.sp { width: 24px; height: 24px; border: 3px solid #e5e5e0; border-top-color: #d97706; border-radius: 50%; animation: sp .7s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e5e5e0; border-radius: 2px; }
+
+/* Tabs nav */
+.nav { background: #fff; border-bottom: 1px solid #e5e5e0; display: flex; align-items: center; padding: 0 20px; gap: 2px; height: 40px; }
+.nav-tab { padding: 0 16px; height: 40px; display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #9ca3af; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; white-space: nowrap; }
+.nav-tab:hover { color: #374151; }
+.nav-tab.active { color: #d97706; border-bottom-color: #d97706; font-weight: 600; }
+
+/* Publications */
+.pubs-wrap { padding: 24px; overflow-y: auto; height: 100%; }
+.pubs-empty { text-align: center; color: #c4c4bc; font-size: 14px; margin-top: 60px; }
+.pub-card { background: #fff; border: 1px solid #e5e5e0; border-radius: 12px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.pub-card-head { padding: 10px 16px; border-bottom: 1px solid #f0f0ec; display: flex; align-items: center; gap: 10px; background: #fafafa; }
+.pub-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.pub-badge.p { background: #eff6ff; color: #2563eb; }
+.pub-badge.f { background: #f0fdf4; color: #16a34a; }
+.pub-match { font-size: 12px; font-weight: 600; color: #374151; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pub-date { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+.pub-actions { display: flex; gap: 6px; margin-left: auto; }
+.pub-btn { background: #fff; border: 1px solid #e5e5e0; color: #6b7280; border-radius: 6px; padding: 3px 10px; font-size: 11px; cursor: pointer; font-family: inherit; transition: all .15s; }
+.pub-btn:hover { color: #1a1a1a; border-color: #9ca3af; }
+.pub-btn.del { color: #ef4444; border-color: #fecaca; background: #fff5f5; }
+.pub-btn.del:hover { background: #fee2e2; }
+.pub-btn.ok { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+.pub-text { padding: 14px 16px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.7; color: #374151; max-height: 200px; overflow-y: auto; white-space: pre-wrap; cursor: pointer; }
+.pub-text:hover { background: #fafaf7; }
+.pub-text-expanded { max-height: none; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 14px; padding: 28px 28px 22px; width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+.modal-title { font-size: 16px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+.modal-sub { font-size: 13px; color: #6b7280; margin-bottom: 22px; line-height: 1.5; }
+.modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-no { background: #f5f5f0; border: 1px solid #e5e5e0; color: #6b7280; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
+.modal-no:hover { background: #ebebeb; color: #1a1a1a; }
+.modal-yes { background: #d97706; border: none; color: #fff; border-radius: 8px; padding: 8px 22px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s; }
+.modal-yes:hover { background: #b45309; }
+.modal-done { text-align: center; padding: 10px 0 4px; }
+.modal-done-icon { font-size: 36px; margin-bottom: 8px; }
+.modal-done-text { font-size: 14px; font-weight: 600; color: #16a34a; }
+
+#stats-panel{overflow-y:auto;padding:12px;background:#f9fafb;border-left:1px solid #e5e7eb;}
+.stats-wrap{display:block;}
+.stats-sec{background:#fff;border-radius:8px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:12px;}
+.stats-title{font-size:11px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #f3f4f6;}
+.filter-btns{display:flex;gap:4px;margin-bottom:8px;}
+.fbtn{padding:2px 8px;border-radius:4px;border:1px solid #e5e7eb;background:#fff;font-size:11px;cursor:pointer;color:#6b7280;}
+.fbtn.active{background:#f97316;color:#fff;border-color:#f97316;}
+.sm-row{display:grid;grid-template-columns:22px 1fr 36px 50px;gap:4px;align-items:center;padding:3px 0;border-bottom:1px solid #f9fafb;font-size:12px;}
+.sm-row:last-child{border-bottom:none;}
+.sm-res{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:3px;color:#fff;font-size:10px;font-weight:700;}
+.sm-opp{color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
+.sm-sc{font-weight:700;color:#111;font-size:12px;white-space:nowrap;}
+.sm-dt{color:#9ca3af;font-size:11px;white-space:nowrap;}
+.odd-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:13px;}
+.odd-row:last-child{border-bottom:none;}
+.odd-label{color:#6b7280;font-size:12px;}
+.odd-val{font-weight:700;font-size:13px;}
+.st-table{width:100%;border-collapse:collapse;font-size:11px;}
+.st-table th{color:#9ca3af;font-weight:600;padding:3px 4px;text-align:center;border-bottom:1px solid #e5e7eb;}
+.st-table td{padding:3px 4px;text-align:center;border-bottom:1px solid #f3f4f6;}
+.st-table tr:last-child td{border-bottom:none;}
+
+.prompt-editor{display:none;height:calc(100vh - 92px);padding:20px;background:#f9fafb;overflow-y:auto;}
+.prompt-editor.active{display:flex;flex-direction:column;gap:12px;}
+.prompt-tabs{display:flex;gap:8px;margin-bottom:4px;}
+.ptab{padding:6px 16px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;font-size:13px;cursor:pointer;color:#6b7280;font-weight:500;}
+.ptab.active{background:#f97316;color:#fff;border-color:#f97316;}
+.prompt-textarea{flex:1;min-height:400px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:Inter,sans-serif;line-height:1.6;resize:vertical;color:#374151;}
+.prompt-save-btn{padding:10px 24px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;align-self:flex-start;}
+.prompt-save-btn:hover{background:#ea580c;}
+.prompt-status{font-size:13px;color:#16a34a;display:none;}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="logo">Match<span>Prev</span></div>
+  <span id="st">Нажмите «Загрузить матчи»</span>
+</div>
+<div class="nav">
+  <div class="nav-tab active" id="navMatches" onclick="switchTab('matches')">⚽ Матчи</div>
+  <div class="nav-tab" id="navFav" onclick="switchTab('fav')">⭐ Избранное <span id="favCount" style="background:#fde68a;color:#92400e;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
+  <div class="nav-tab" id="navPrompt" onclick="switchTab('prompt')">✏️ Промт</div>
+  <div class="nav-tab" id="navPubs" onclick="switchTab('pubs')">📋 Публикации <span id="pubsCount" style="background:#fde68a;color:#92400e;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
+</div>
+<div class="wrap">
+  <div class="sb">
+    <div class="sbt">
+      <button class="btnld" id="btnLd" onclick="load()">⚽ Загрузить ближайшие матчи</button>
+    </div>
+    <div class="ml" id="ml"><div class="mn">Нажмите кнопку выше<br>Загрузятся матчи<br>на ближайшие 48 часов</div></div>
+  </div>
+  <div class="main" id="main"><div class="emp">← Выберите матч из списка</div></div>
+  <div id="stats-panel" style="overflow-y:auto;height:100%;padding:12px;"><div style="color:#9ca3af;font-size:13px;text-align:center;padding-top:40px">Выберите матч</div></div>
+</div>
+<!-- Favorites tab -->
+<div id="favTab" style="display:none;height:calc(100vh - 92px);overflow-y:auto;background:#f5f5f0;padding:20px;">
+  <div id="favList"><div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Добавьте матчи в избранное с помощью звёздочки ★</div></div>
+</div>
+<!-- Prompt tab -->
+<div id="promptTab" style="display:none;height:calc(100vh - 92px);overflow-y:auto;background:#f5f5f0;padding:20px;">
+  <div style="max-width:700px;margin:0 auto;">
+    <div style="font-size:15px;font-weight:600;color:#374151;margin-bottom:8px;">Дополнительные правила промта</div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">Эти правила будут добавляться к каждой генерации превью и прогноза автоматически.</div>
+    <textarea id="promptExtra" style="width:100%;height:300px;font-size:13px;font-family:inherit;border:1px solid #d1d5db;border-radius:8px;padding:12px;resize:vertical;box-sizing:border-box;line-height:1.6;" placeholder="Введите дополнительные правила..."></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <button onclick="savePromptExtra()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;cursor:pointer;">💾 Сохранить</button>
+      <span id="promptSaveStatus" style="font-size:12px;color:#16a34a;line-height:32px;"></span>
+    </div>
+  </div>
+</div>
+<!-- Publications tab -->
+<div id="pubsTab" style="display:none;height:calc(100vh - 92px);overflow-y:auto;background:#f5f5f0;">
+  <div class="pubs-wrap" id="pubsWrap"></div>
+</div>
+<script>
+var M={}, sid=null, enr=null, pt=null, ft=null, cr=null;
+var _lastShown = 'p';
+var _pendingRestore = null; // данные для восстановления после загрузки матчей
+// pt/ft = null означает "не генерировалось", '' означает "очищено — пустое поле"
+
+// ── Автосохранение текстов ────────────────────────────────────────────────
+function saveTexts() {
+  try {
+    if (sid) {
+      var data = {sid: sid, pt: pt, ft: ft, ts: Date.now()};
+      localStorage.setItem('mp_texts', JSON.stringify(data));
+    }
+  } catch(e) {}
+}
+
+function restoreTexts() {
+  try {
+    var raw = localStorage.getItem('mp_texts');
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    // Восстанавливаем только если не старше 12 часов
+    if (Date.now() - data.ts > 12 * 3600 * 1000) { localStorage.removeItem('mp_texts'); return; }
+    return data;
+  } catch(e) { return null; }
+}
+
+// ── Память правок ─────────────────────────────────────────────────────────
+var EDITS = [];
+var APP_VERSION = '2.9';
+try {
+  localStorage.removeItem('mp_texts');
+  // Keep mp_pubs (publications)
+  var storedVer = localStorage.getItem('mp_version');
+  if (storedVer !== APP_VERSION) {
+    localStorage.setItem('mp_version', APP_VERSION);
+  }
+  console.log('[MatchPrev] v' + APP_VERSION + ' — cleared unsaved forecasts');
+} catch(e) {}
+
+// Загружаем правки из storage.json (персистентно) при старте
+(async function(){
+  try {
+    var st = await fetch('/storage');
+    if(st.ok){
+      var d = await st.json();
+      if(Array.isArray(d.edits) && d.edits.length) {
+        EDITS = d.edits;
+        console.log('[MatchPrev] loaded', EDITS.length, 'edits from storage.json');
+      }
+    }
+  } catch(e) {}
+})();
+
+function saveEdits() {
+  fetch('/storage').then(function(r){return r.json();}).then(function(st){
+    st.edits = EDITS;
+    return fetch('/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(st)});
+  }).catch(function(){});
+}
+
+function addEdit(original, edited, type) {
+  if (!original||!edited||original.trim()===edited.trim()) return;
+  EDITS.unshift({orig:original.slice(0,600), edit:edited.slice(0,600), type:type});
+  if (EDITS.length>100) EDITS=EDITS.slice(0,100);
+  saveEdits();
+}
+
+function editsContext(type) {
+  var rel = EDITS.filter(function(e){return e.type===type;}).slice(0,5);
+  if (!rel.length) return '';
+  var s = '\n\nПРИМЕРЫ ПРАВОК РЕДАКТОРА (учти их стиль в новой генерации):';
+  rel.forEach(function(e,i){
+    s += '\n\nПравка '+(i+1)+':\nБыло: '+e.orig.slice(0,250)+'\nСтало: '+e.edit.slice(0,250);
+  });
+  return s;
+}
+
+// ── Разрешённые турниры ───────────────────────────────────────────────────
+// Коды турниров из реального фида SmartTables
+// Проверено на реальных данных API
+var ALLOWED_CODES = {
+  // UEFA еврокубки
+  'UCL':1, 'CL':1,          // Лига чемпионов
+  'UEL':1, 'EL':1,          // Лига Европы
+  'UECL':1, 'ECL':1,        // Лига конференций
+  // Чемпионаты (коды из реального API)
+  'ENG1':1, 'ENG4':1,  // АПЛ
+  'SPA1':1,  // Ла Лига (Испания)
+  'ITA1':1,  // Серия А (Италия)
+  'GER1':1,  // Бундеслига (Германия)
+  'FRA1':1   // Лига 1 (Франция)
+};
+
+function isAllowed(m) {
+  var c=m.competition; if(!c)return false;
+  var code=(c.code||'').toUpperCase();
+  var country=(m.country&&m.country.code||'').toLowerCase();
+
+  // 1. Проверка по коду — самый надёжный
+  if(ALLOWED_CODES[code]) return true;
+
+  // 2. Запасной: по названию + стране
+  var n=(c.name_ru||c.name_en||c.name||'').toLowerCase().trim();
+
+  // АПЛ — Англия, любой код
+  if(country==='gb'&&(n.indexOf('premier')>=0||n==='апл'||n.indexOf('premier league')>=0)) return true;
+  if(country==='en'&&n.indexOf('premier')>=0) return true;
+  if(n==='апл') return true;
+
+  // Ла Лига — Испания
+  if(country==='es'&&(n.indexOf('primera')>=0||n.indexOf('la liga')>=0||n==='ла лига')) return true;
+  if(n==='ла лига') return true;
+
+  // Серия А — Италия
+  if(country==='it'&&(n==='серия а'||n==='serie a')) return true;
+
+  // Бундеслига — Германия, только первая
+  if(country==='de'&&(n==='бундеслига'||n==='1. bundesliga')) return true;
+
+  // Лига 1 — Франция
+  if(country==='fr'&&(n==='ligue 1'||n==='лига 1')) return true;
+
+  // UEFA
+  if(n.indexOf('лига чемпионов')>=0||n.indexOf('champions league')>=0) return true;
+  if(n.indexOf('лига европы')>=0||n.indexOf('europa league')>=0) return true;
+  if(n.indexOf('лига конференций')>=0||n.indexOf('conference league')>=0) return true;
+
+  return false;
+}
+function isFuture(m){var s=m.status||'';return s!=='is-over'&&s!=='canceled'&&s!=='postponed'&&s!=='abandoned';}
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+function ss(s){document.getElementById('st').textContent=s;}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function tn(t){return t&&(t.name_ru||t.name_en||t.name)||'?';}
+function fdt(dt){
+  if(!dt)return['—','—'];
+  var d=new Date(dt),m=new Date(d.getTime()+3*3600*1000);
+  var mo=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  return[m.getUTCDate()+' '+mo[m.getUTCMonth()],String(m.getUTCHours()).padStart(2,'0')+':'+String(m.getUTCMinutes()).padStart(2,'0')];
+}
+async function stGet(u){var r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+async function stLoad(){try{var r=await fetch('/storage');if(!r.ok)return{};return await r.json();}catch(e){return{};}}
+async function stSave(data){try{await fetch('/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});}catch(e){}}
+async function cl(sys,usr,mx){
+  var r=await fetch('/claude',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:mx||4096,system:sys,messages:[{role:'user',content:usr}]})});
+  var d=await r.json();
+  if(d.error)throw new Error(d.error.message||JSON.stringify(d.error));
+  return(d.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+}
+
+// ── Load matches ──────────────────────────────────────────────────────────
+async function load(){
+  var btn=document.getElementById('btnLd');
+  btn.disabled=true;
+  document.getElementById('ml').innerHTML='<div class="mn">Загружаем...</div>';
+  ss('Загружаем...');
+  try{
+    // Считаем даты в МСК (UTC+3)
+    var mskNow=new Date(Date.now()+3*3600*1000);
+    var mskToday=mskNow.toISOString().slice(0,10);
+    var mskTom=new Date(mskNow.getTime()+24*3600*1000).toISOString().slice(0,10);
+    var days=[mskToday,mskTom];
+
+    // Загружаем все страницы одного дня
+    async function fetchDay(day){
+      var result=[];
+      var maxPages=10;
+      for(var off=0;off<maxPages*100;off+=100){
+        try{
+          var r=await stGet('/st/matches?date_from='+day+'&date_to='+day+'&sort_order=asc&limit=100'+(off>0?'&offset='+off:''));
+          var raw=r.data;
+          var chunk=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+          if(r.pagination&&r.pagination.totalPages) maxPages=r.pagination.totalPages;
+          if(!chunk.length) break;
+          result=result.concat(chunk);
+          if(chunk.length<100) break;
+        }catch(e){break;}
+      }
+      return result;
+    }
+
+    // Загружаем оба дня параллельно
+    var allMatches=[], seen={};
+    var dayResults=await Promise.all(days.map(fetchDay));
+    dayResults.forEach(function(chunks){
+      chunks.forEach(function(m){
+        var id=m.id||m.match_id;
+        if(id&&!seen[id]){seen[id]=true;allMatches.push(m);}
+      });
+    });
+
+    // Логируем все коды для отладки
+    var codes={};
+    allMatches.forEach(function(m){
+      if(!m.competition)return;
+      var k=(m.competition.code||'?')+'|'+(m.competition.name_ru||m.competition.name_en||'')+'|'+((m.country&&m.country.code)||'');
+      if(!codes[k])codes[k]=0;
+      codes[k]++;
+    });
+    console.log('ALL CODES:',JSON.stringify(codes));
+
+    // Moscow time = UTC+3
+    var nowMsk=new Date(Date.now()+3*3600*1000);
+
+    // Фильтр матчей
+    var filtered=allMatches.filter(function(m){
+      // Завершённые — всегда убираем
+      if(m.status==='is-over'||m.status==='canceled'||m.status==='postponed'||m.status==='abandoned') return false;
+
+      // Топ-5 лиги и еврокубки — показываем всегда если не завершены
+      if(isAllowed(m)) return true;
+
+      // Остальные — только если есть коэффициенты и матч ещё не начался
+      if(m.date_time&&new Date(m.date_time)<=new Date()) return false;
+      var hasOdds=m.odds&&m.odds.length>=2;
+      return hasOdds;
+    });
+
+    var final=filtered;
+    final.sort(function(a,b){return new Date(a.date_time)-new Date(b.date_time);});
+
+    if(!final.length){
+      document.getElementById('ml').innerHTML='<div class="mn">Матчей не найдено</div>';
+      ss('Матчей нет');return;
+    }
+
+    M={};final.forEach(function(m){M[m.id||m.match_id]=m;});
+    renderList(final);
+    ss('Найдено '+final.length+' матч'+(final.length===1?'':final.length<5?'а':'ей'));
+
+    var saved=restoreTexts();
+    if(saved&&saved.sid&&M[saved.sid]){
+      var resEl=document.querySelector('.mi[onclick="sel('+saved.sid+',this)"]');
+      if(resEl){
+        resEl.classList.add('act');sid=saved.sid;pt=saved.pt;ft=saved.ft;enr=null;cr=null;
+        var m2=M[sid],dt2=fdt(m2.date_time),lgN=leagueKey(m2),lgL=m2.competition&&m2.competition.logo?m2.competition.logo:'';
+        var stad2=translit(m2.stadium&&(m2.stadium.name_ru||m2.stadium.name_en||m2.stadium.name)||''),ref2=translit(m2.referee&&(m2.referee.name_ru||m2.referee.name_en||m2.referee.name)||'');
+        document.getElementById('main').innerHTML=
+          '<div class="mc"><div class="mc-lg-row">'+(lgL?'<img class="mc-lg-logo" src="'+esc(lgL)+'" onerror="this.style.display=\'none\'">'  :'')+
+          '<div class="mc-lg-name">'+esc(lgN)+'</div></div><div class="mc-t">'+esc(tn(m2.home))+' — '+esc(tn(m2.away))+'</div>'+
+          '<div class="mc-m"><div class="mc-chip">📅 <b>'+dt2[0]+'</b></div><div class="mc-chip">🕐 <b>'+dt2[1]+' МСК</b></div>'+
+          (stad2?'<div class="mc-chip">🏟 <b>'+esc(stad2)+'</b></div>':'')+
+          (ref2?'<div class="mc-chip">Рефери — <b>'+esc(ref2)+'</b></div>':'')+
+          '</div></div><div class="btns"><button class="bp" id="bp" onclick="gen(\'p\')">📝 Сгенерировать превью</button>'+
+          '<button class="bf" id="bf" onclick="gen(\'f\')">🎯 Сгенерировать прогноз</button></div>'+
+          '<div style="padding:6px 0 2px"><textarea id="kf" placeholder="📌 Ключевые факты — вписывай данные которые ОБЯЗАТЕЛЬНО попадут в текст. Пример: Эспаньол 18 матчей без побед." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;color:#374151;resize:vertical;min-height:56px;font-family:Inter,sans-serif;background:#fafafa"></textarea></div>'+
+          '<div id="rb"></div>';
+        if(pt!==null)show('p');else if(ft!==null)show('f');
+        if(window._kfSaved){var kfr=document.getElementById('kf');if(kfr)kfr.value=window._kfSaved;}
+        ss(tn(m2.home)+' — '+tn(m2.away)+' (восстановлено)');
+      }
+    }
+  }catch(e){
+    document.getElementById('ml').innerHTML='<div class="mn" style="color:#ef4444">'+esc(e.message)+'</div>';
+    ss('Ошибка');console.error(e);
+  }finally{btn.disabled=false;}
+}
+
+var ORDER=['Лига чемпионов','Лига Европы','Лига конференций','АПЛ','Ла Лига','Серия А','Бундеслига','Лига 1'];
+function leagueKey(m){
+  var code=(m.competition&&m.competition.code||'').toUpperCase();
+  var n=(m.competition&&(m.competition.name_ru||m.competition.name_en||'')||'').toLowerCase().trim();
+  if(code==='UCL'||code==='CL'||n==='лига чемпионов')return'Лига чемпионов';
+  if(code==='UEL'||code==='EL'||n==='лига европы')return'Лига Европы';
+  if(code==='UECL'||code==='ECL'||n.indexOf('конференц')>=0)return'Лига конференций';
+  if(n==='апл'||n==='premier league')return'АПЛ';
+  if(n==='ла лига'||n==='la liga')return'Ла Лига';
+  if(n==='серия а'||n==='serie a')return'Серия А';
+  if(n==='бундеслига'||n==='1. bundesliga')return'Бундеслига';
+  if(n==='лига 1'||n==='ligue 1')return'Лига 1';
+  return tn(m.competition);
+}
+
+// Страна в родительном падеже по коду ISO
+var COUNTRY_GENITIVE = {
+  'br':'бразильской','ar':'аргентинской','cl':'чилийской','mx':'мексиканской',
+  'uy':'уругвайской','co':'колумбийской','pe':'перуанской','bo':'боливийской',
+  'ec':'эквадорской','py':'парагвайской','ve':'венесуэльской','cr':'костариканской',
+  'us':'американской','ca':'канадской','jp':'японской','kr':'южнокорейской',
+  'cn':'китайской','au':'австралийской','sa':'саудовской','ae':'эмиратской',
+  'tr':'турецкой','nl':'нидерландской','pt':'португальской','be':'бельгийской',
+  'ru':'российской','ua':'украинской','pl':'польской','cz':'чешской',
+  'ro':'румынской','hr':'хорватской','rs':'сербской','gr':'греческой',
+  'dk':'датской','se':'шведской','no':'норвежской','fi':'финской',
+  'ch':'швейцарской','at':'австрийской','sk':'словацкой','hu':'венгерской',
+  'bg':'болгарской','si':'словенской','al':'албанской','ba':'боснийской',
+  'me':'черногорской','mk':'македонской','cy':'кипрской','il':'израильской',
+  'eg':'египетской','ma':'марокканской','tn':'тунисской','ng':'нигерийской',
+  'gh':'ганской','cm':'камерунской','sn':'сенегальской','ci':'ивуарской',
+  'za':'южноафриканской','ml':'малийской','mg':'мадагаскарской',
+};
+
+// Страна → «чемпионат X» (именительный падеж)
+var COUNTRY_CHAMPIONSHIP = {
+  'br':'чемпионате Бразилии','ar':'чемпионате Аргентины','cl':'чемпионате Чили',
+  'mx':'чемпионате Мексики','uy':'чемпионате Уругвая','co':'чемпионате Колумбии',
+  'pe':'чемпионате Перу','bo':'чемпионате Боливии','ec':'чемпионате Эквадора',
+  'py':'чемпионате Парагвая','ve':'чемпионате Венесуэлы','cr':'чемпионате Коста-Рики',
+  'us':'MLS','ca':'чемпионате Канады','jp':'чемпионате Японии','kr':'чемпионате Южной Кореи',
+  'cn':'чемпионате Китая','au':'чемпионате Австралии','sa':'чемпионате Саудовской Аравии',
+  'ae':'чемпионате ОАЭ','tr':'чемпионате Турции','nl':'чемпионате Нидерландов',
+  'pt':'чемпионате Португалии','be':'чемпионате Бельгии','ru':'чемпионате России',
+  'ua':'чемпионате Украины','pl':'чемпионате Польши','cz':'чемпионате Чехии',
+  'ro':'чемпионате Румынии','hr':'чемпионате Хорватии','rs':'чемпионате Сербии',
+  'gr':'чемпионате Греции','dk':'чемпионате Дании','se':'чемпионате Швеции',
+  'no':'чемпионате Норвегии','fi':'чемпионате Финляндии','ch':'чемпионате Швейцарии',
+  'at':'чемпионате Австрии','sk':'чемпионате Словакии','hu':'чемпионате Венгрии',
+  'bg':'чемпионате Болгарии','si':'чемпионате Словении','al':'чемпионате Албании',
+  'ba':'чемпионате Боснии','me':'чемпионате Черногории','mk':'чемпионате Македонии',
+  'cy':'чемпионате Кипра','il':'чемпионате Израиля','eg':'чемпионате Египта',
+  'ma':'чемпионате Марокко','tn':'чемпионате Туниса','ng':'чемпионате Нигерии',
+  'gh':'чемпионате Ганы','cm':'чемпионате Камеруна','sn':'чемпионате Сенегала',
+  'za':'чемпионате ЮАР','ml':'чемпионате Мали','ge':'чемпионате Грузии',
+  'am':'чемпионате Армении','az':'чемпионате Азербайджана','kz':'чемпионате Казахстана',
+  'by':'чемпионате Беларуси','ee':'чемпионате Эстонии','lv':'чемпионате Латвии',
+  'lt':'чемпионате Литвы','md':'чемпионате Молдовы','is':'чемпионате Исландии',
+  'ie':'чемпионате Ирландии','sc':'чемпионате Шотландии','gb':'чемпионате Англии',
+  'en':'чемпионате Англии','ni':'чемпионате Северной Ирландии','wa':'чемпионате Уэльса',
+  'de':'чемпионате Германии','es':'чемпионате Испании','it':'чемпионате Италии',
+  'fr':'чемпионате Франции',
+};
+
+// Исключения — эти турниры ВСЕГДА используют собственное название (не чемпионат X)
+var CHAMPIONSHIP_EXCEPTIONS = [
+  'Ла Лига','АПЛ','Серия А','Лига 1','Бундеслига','MLS',
+  'Суперлига', // китайская и турецкая — handled below
+  'Лига чемпионов','Лига Европы','Лига конференций',
+];
+// Исключения с привязкой к стране
+var CHAMPIONSHIP_EXCEPTIONS_BY_COUNTRY = {
+  'Суперлига': ['tr','cn'], // турецкая и китайская Суперлига — оставляем
+  'Бундеслига': ['de','at'], // немецкая и австрийская — оставляем
+};
+
+// Турниры всегда без страны (еврокубки, уникальные)
+var UNIQUE_TOURNAMENTS_ALWAYS = ['Лига чемпионов','Лига Европы','Лига конференций','Ла Лига','АПЛ'];
+
+// Без страны ТОЛЬКО для конкретной страны — иначе добавляем страну
+var UNIQUE_BY_COUNTRY = {
+  'Бундеслига': 'de',
+  'Серия А': 'it',
+  'Лига 1': 'fr',
+  'Премьер-лига': 'gb',
+  'Премьер Лига': 'gb',
+};
+
+// Склонение названий турниров
+var TOURNAMENT_GENITIVE = {
+  'Серия А': 'Серии А',
+  'Серия Б': 'Серии Б',
+  'Серия В': 'Серии В',
+  'Примера': 'Примере',
+  'Примера Дивизион': 'Примере Дивисьон',
+  'Лига 1': 'Лиге 1',
+  'Лига 2': 'Лиге 2',
+  'Лига 3': 'Лиге 3',
+  'Премьер-лига': 'Премьер-лиге',
+  'Премьер Лига': 'Премьер-лиге',
+  'Бундеслига': 'Бундеслиге',
+  'Чемпионшип': 'Чемпионшипе',
+  'Суперлига': 'Суперлиге',
+  'Экстралига': 'Экстралиге',
+  'Дивизион 1': 'Дивизионе 1',
+  'Дивизион 2': 'Дивизионе 2',
+};
+
+function tournamentWithCountry(m){
+  var lg=leagueKey(m);
+  var cc=(m.country&&m.country.code||m.competition&&m.competition.country_code||'').toLowerCase();
+  var raw=(m.competition&&(m.competition.name_ru||m.competition.name_en||'')||'').toLowerCase().trim();
+
+  if(raw.indexOf('товарищ')>=0||raw.indexOf('friendly')>=0||raw.indexOf('international friendly')>=0)
+    return '__friendly__';
+  if(UNIQUE_TOURNAMENTS_ALWAYS.indexOf(lg)>=0) return lg;
+  if(lg==='МЛС'||lg==='MLS'||cc==='us') return 'MLS';
+  if((lg==='АПЛ'||lg==='Премьер-лига'||lg==='Премьер Лига')&&(cc==='gb'||cc==='en'))
+    return 'английской Премьер-лиге';
+  if(lg==='Бундеслига'&&cc==='de') return 'немецкой Бундеслиге';
+  if(lg==='Бундеслига'&&cc==='at') return 'австрийской Бундеслиге';
+  if((lg==='Ла Лига'||lg==='La Liga')&&cc==='es')
+    return Math.random()<0.5?'испанской Примере':'Ла Лиге';
+  if(lg==='Серия А'&&cc==='it') return lg;
+  if(lg==='Лига 1'&&cc==='fr') return lg;
+  if(lg==='Суперлига'&&cc==='tr') return 'турецкой Суперлиге';
+  if(lg==='Суперлига'&&cc==='cn') return 'китайской Суперлиге';
+  if(cc==='no'){
+    if(raw.indexOf('1. divisjon')>=0||raw.indexOf('первый дивизион')>=0) return 'Первого дивизиона Норвегии';
+    if(raw.indexOf('2. divisjon')>=0||raw.indexOf('второй дивизион')>=0) return '2-й лиги Норвегии';
+    if(raw.indexOf('3. divisjon')>=0||raw.indexOf('третий дивизион')>=0) return '3-й лиги Норвегии';
+  }
+  if(cc==='fi'){
+    if(raw.indexOf('дивизион 1')>=0||raw.indexOf('division 1')>=0||raw.indexOf('ykkönen')>=0)
+      return 'финской Юккёслиги';
+    return 'чемпионате Финляндии';
+  }
+  if(cc==='by'){
+    if(raw.indexOf('первая лига')>=0||raw.indexOf('first league')>=0||raw.indexOf('1 liga')>=0)
+      return 'Первой лиги чемпионата Беларуси';
+    return 'чемпионате Беларуси';
+  }
+  if(cc==='ru'){
+    if(raw.indexOf('дивизион б')>=0||raw.indexOf('division b')>=0) return 'Второй лиги Дивизиона Б';
+    if(raw.indexOf('дивизион а')>=0||raw.indexOf('division a')>=0) return 'Второй лиги Дивизиона А';
+    if(raw.indexOf('первая лига')>=0||raw.indexOf('first league')>=0) return 'Первой лиги';
+    return 'чемпионате России';
+  }
+  var champ=COUNTRY_CHAMPIONSHIP[cc];
+  if(champ) return champ;
+  var gen=COUNTRY_GENITIVE[cc];
+  if(!gen) return lg;
+  var lgDeclined=TOURNAMENT_GENITIVE[lg]||lg;
+  return gen+' '+lgDeclined;
+}
+
+function renderList(list){
+  var byL={};
+  list.forEach(function(m){var k=leagueKey(m);if(!byL[k])byL[k]=[];byL[k].push(m);});
+  var lgs=ORDER.filter(function(l){return byL[l];}).concat(Object.keys(byL).filter(function(l){return ORDER.indexOf(l)<0;}));
+  var h='';
+  lgs.forEach(function(lg){
+    h+='<div class="lg-hdr">'+esc(lg)+'</div>';
+    byL[lg].forEach(function(m){
+      var id=m.id||m.match_id,dt=fdt(m.date_time);
+      var _favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+      var _isFav=!!_favs[id];
+      h+='<div class="mi" id="mi-'+id+'" onclick="sel('+id+',this)">'+
+         '<div style="display:flex;align-items:flex-start;gap:4px">'+
+         '<div style="flex:1;min-width:0"><div class="mi-t">'+esc(tn(m.home))+' — '+esc(tn(m.away))+'</div><div class="mi-s">'+dt[0]+' · '+dt[1]+' МСК</div></div>'+
+         '<button onclick="event.stopPropagation();toggleFav('+id+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:'+(_isFav?'#d97706':'#d1d5db')+';padding:2px;line-height:1;flex-shrink:0" id="fav-'+id+'">★</button>'+
+         '</div></div>';
+    });
+  });
+  document.getElementById('ml').innerHTML=h;
+}
+
+// ── Select match ──────────────────────────────────────────────────────────
+function sel(id,el){
+  document.querySelectorAll('.mi').forEach(function(e){e.classList.remove('act');});
+  el.classList.add('act');
+  sid=id;enr=null;pt=null;ft=null;cr=null;_lastShown='p';
+  // Сбрасываем панель статистики
+  var sp=document.getElementById('stats-panel');
+  if(sp){sp.innerHTML='<div style="color:#9ca3af;font-size:13px;padding:20px;text-align:center">Загружаем статистику...</div>';}
+  window._currentMatch=M[id];
+  // Загружаем статистику асинхронно
+  setTimeout(function(){showStats(M[id]);},100);
+  var m=M[id],dt=fdt(m.date_time);
+  var lgName=leagueKey(m);
+  var lgLogo=m.competition&&m.competition.logo?m.competition.logo:'';
+  var stad=translit(m.stadium&&(m.stadium.name_ru||m.stadium.name_en||m.stadium.name)||'');
+  var ref=translit(m.referee&&(m.referee.name_ru||m.referee.name_en||m.referee.name)||'');
+  document.getElementById('main').innerHTML=
+    '<div class="mc">'+
+      '<div class="mc-lg-row">'+
+        (lgLogo?'<img class="mc-lg-logo" src="'+esc(lgLogo)+'" onerror="this.style.display=\'none\'">':'')+
+        '<div class="mc-lg-name">'+esc(lgName)+'</div>'+
+      '</div>'+
+      '<div class="mc-t">'+esc(tn(m.home))+' — '+esc(tn(m.away))+'</div>'+
+      '<div class="mc-m">'+
+        '<div class="mc-chip">📅 <b>'+dt[0]+'</b></div>'+
+        '<div class="mc-chip">🕐 <b>'+dt[1]+' МСК</b></div>'+
+        (stad?'<div class="mc-chip">🏟 <b>'+esc(stad)+'</b></div>':'')+
+        (ref?'<div class="mc-chip">Рефери — <b>'+esc(ref)+'</b></div>':'')+
+      '</div>'+
+    '</div>'+
+    '<div class="btns">'+
+      '<button class="bp" id="bp" onclick="gen(\'p\')">📝 Сгенерировать превью</button>'+
+      '<button class="bf" id="bf" onclick="gen(\'f\')">🎯 Сгенерировать прогноз</button>'+
+    '</div>'+
+    '<div style="margin-bottom:14px">'+
+      '<button onclick="showOddsDebug()" style="width:100%;background:#f9fafb;border:1px dashed #d1d5db;color:#6b7280;border-radius:8px;padding:8px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'#f9fafb\'">🔍 Показать полный odds JSON</button>'+
+    '</div>'+
+    '<div id="rb"></div>';
+  ss(tn(m.home)+' — '+tn(m.away));
+}
+
+// ── Enrich ────────────────────────────────────────────────────────────────
+async function enrich(m){
+  var id=m.id||m.match_id,hid=m.home&&m.home.id,aid=m.away&&m.away.id,cid=m.competition&&m.competition.id,sp=m.season_id?'&season_id='+m.season_id:'';
+  var rs=await Promise.allSettled([
+    stGet('/st/matches/odds?id='+id+'&stat=goals&period=0'),
+    cid?stGet('/st/competitions/standings-and-brackets?competition_id='+cid+sp):Promise.reject(),
+    hid?stGet('/st/matches?team_id='+hid+'&status=is-over&sort_order=desc&limit=30'+sp):Promise.reject(),
+    aid?stGet('/st/matches?team_id='+aid+'&status=is-over&sort_order=desc&limit=30'+sp):Promise.reject(),
+    hid&&aid?stGet('/st/matches?team_id='+hid+'&h2h_team1_id='+hid+'&h2h_team2_id='+aid+'&status=is-over&sort_order=desc&limit=15'):Promise.reject(),
+    stGet('/st/matches/sideliners?id='+id),
+    hid&&cid?stGet('/st/teams/players?team_id[0]='+hid+'&competition_id[0]='+cid+'&limit=20'):Promise.reject(),
+    aid&&cid?stGet('/st/teams/players?team_id[0]='+aid+'&competition_id[0]='+cid+'&limit=20'):Promise.reject(),
+    hid?stGet('/st/teams/trends-streaks?team_id='+hid):Promise.reject(),
+    aid?stGet('/st/teams/trends-streaks?team_id='+aid):Promise.reject(),
+  ]);
+  var e=JSON.parse(JSON.stringify(m));
+  function items(r){if(r.status!=='fulfilled')return[];var d=r.value&&r.value.data;return Array.isArray(d)?d:(Array.isArray(d&&d.items)?d.items:(Array.isArray(d&&d.data)?d.data:[]));}
+  // Add trends-streaks data
+  if(rs[8]&&rs[8].status==='fulfilled'&&rs[8].value) e.home_trends=rs[8].value.data||rs[8].value;
+  if(rs[9]&&rs[9].status==='fulfilled'&&rs[9].value) e.away_trends=rs[9].value.data||rs[9].value;
+  if(rs[0].status==='fulfilled'&&rs[0].value&&rs[0].value.success){
+    var odds=(rs[0].value.data||[]).filter(function(o){return o.period===0&&o.stat==='goals';});
+    var f=function(mk,bt,hc){return(odds.find(function(o){return o.market===mk&&o.bet_type===bt&&(hc==null||o.handicap==hc);})||{}).odd;};
+    e.odds_parsed={p1:f('1x2','p1'),x:f('1x2','px'),p2:f('1x2','p2'),over_2_5:f('total','total_over',2.5),under_2_5:f('total','total_under',2.5),bts_yes:f('bts','both_to_score')};
+  }
+  if(rs[1].status==='fulfilled')e.standings=rs[1].value;
+  e.home_last_matches=items(rs[2]);e.away_last_matches=items(rs[3]);
+  var h2h=items(rs[4]).filter(function(x){return x.home&&x.home.goals!=null;}).slice(0,8);
+  if(h2h.length)e.h2h_matches=h2h;
+  if(rs[5].status==='fulfilled')e.sideliners=rs[5].value;
+  function scorers(r){return items(r).filter(function(p){return(p.goals||0)>0;}).sort(function(a,b){return(b.goals||0)-(a.goals||0);}).slice(0,5);}
+  e.home_top_scorers=scorers(rs[6]);e.away_top_scorers=scorers(rs[7]);
+  if(e.odds_parsed&&e.odds_parsed.p1&&e.odds_parsed.p2){
+    var k1=parseFloat(e.odds_parsed.p1),k2=parseFloat(e.odds_parsed.p2),ratio=Math.max(k1,k2)/Math.min(k1,k2),fav=k1<k2?tn(m.home):tn(m.away);
+    e.favorite_verdict=ratio<1.5?'нет явного фаворита':ratio<2.8?'фаворит: '+fav:'явный фаворит: '+fav;
+  }
+  return e;
+}
+
+// ── Stats Panel ──────────────────────────────────────────────────────────
+function fmtMatch(m,teamId){
+  if(!m) return '';
+  var home=m.home,away=m.away;
+  var isHome=home&&home.id===teamId;
+  var hg=home&&home.goals!=null?home.goals:'?';
+  var ag=away&&away.goals!=null?away.goals:'?';
+  var score=hg+':'+ag;
+  var res='';
+  if(home&&away&&home.goals!=null&&away.goals!=null){
+    var w=home.goals>away.goals?'home':(away.goals>home.goals?'away':'draw');
+    if(w==='draw') res='Н';
+    else if((w==='home'&&isHome)||(w==='away'&&!isHome)) res='В';
+    else res='П';
+  }
+  var resColor=res==='В'?'#16a34a':res==='П'?'#ef4444':'#d97706';
+  var dt=m.date_time?new Date(new Date(m.date_time).getTime()+3*3600*1000).toLocaleDateString('ru',{day:'numeric',month:'short'}):'';
+  var hn=home&&(home.name_ru||home.name_en||'?');
+  var an=away&&(away.name_ru||away.name_en||'?');
+  var scoreColor=isHome?(home.goals>away.goals?'#16a34a':home.goals<away.goals?'#ef4444':'#d97706'):(away.goals>home.goals?'#16a34a':away.goals<home.goals?'#ef4444':'#d97706');
+  return '<div style="display:grid;grid-template-columns:20px 44px 1fr 30px;gap:4px;align-items:center;padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:12px;">'+
+    '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:3px;background:'+resColor+';color:#fff;font-size:10px;font-weight:700;">'+res+'</span>'+
+    '<span style="color:#9ca3af;font-size:11px;white-space:nowrap">'+dt+'</span>'+
+    '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151">'+esc(hn)+' — '+esc(an)+'</span>'+
+    '<span style="font-weight:700;color:'+scoreColor+';text-align:right;white-space:nowrap">'+score+'</span>'+
+    '</div>';
+}
+
+function fmtH2H(m){
+  if(!m) return '';
+  var home=m.home,away=m.away;
+  var hg=home&&home.goals!=null?home.goals:'?';
+  var ag=away&&away.goals!=null?away.goals:'?';
+  var dt=m.date_time?new Date(new Date(m.date_time).getTime()+3*3600*1000).toLocaleDateString('ru',{day:'numeric',month:'short'}):'';
+  var hn=home&&(home.name_ru||home.name_en||'?');
+  var an=away&&(away.name_ru||away.name_en||'?');
+  var score=hg+':'+ag;
+  var scoreColor=hg>ag?'#16a34a':hg<ag?'#ef4444':'#d97706';
+  return '<div style="display:grid;grid-template-columns:44px 1fr 28px;gap:4px;align-items:center;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px;">'+
+    '<span style="color:#9ca3af;font-size:11px;white-space:nowrap">'+dt+'</span>'+
+    '<span style="color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(hn)+' — '+esc(an)+'</span>'+
+    '<span style="font-weight:700;color:'+scoreColor+';text-align:right;white-space:nowrap">'+score+'</span>'+
+    '</div>';
+}
+
+function fmtOdds(e){
+  var o=e.odds_parsed||{};
+  // Try raw odds array too
+  var rawOdds=e.odds||[];
+  var bk=rawOdds[0]||{};
+  var p1=o.p1||(bk.odd_1);
+  var px=o.x||(bk.odd_x);
+  var p2=o.p2||(bk.odd_2);
+  var o25=o.over_2_5;
+  var bts=o.bts_yes;
+  
+  function row(label,val){
+    if(!val) return '';
+    var v=parseFloat(val);
+    var color=v>=2.5?'#16a34a':v>=1.8?'#d97706':'#6b7280';
+    return '<div class="odd-row"><span class="odd-label">'+label+'</span><span class="odd-val" style="color:'+color+'">'+parseFloat(val).toFixed(2)+'</span></div>';
+  }
+  
+  // Also check for handicap odds from raw
+  var lines='';
+  lines+=row('П1',p1);
+  lines+=row('Х',px);
+  lines+=row('П2',p2);
+  lines+=row('ТБ 2.5',o25);
+  lines+=row('Обе забьют',bts);
+  
+  // Try to get handicap from raw odds_parsed or raw odds
+  if(e.odds_handicap){
+    var h=e.odds_handicap;
+    [-1,-1.5,-2,-2.5].forEach(function(hv){
+      if(h[hv]) lines+=row('Ф'+hv,h[hv]);
+      if(h[-hv]) lines+=row('Ф+'+(Math.abs(hv)),h[-hv]);
+    });
+  }
+  
+  return lines||'<div style="color:#9ca3af;font-size:12px">Нет данных</div>';
+}
+
+function fmtTable(e, hTeamId, aTeamId){
+  var st=e.standings;
+  var stData=st&&st.data;
+  console.log('standings raw full:',JSON.stringify(stData).slice(0,500));
+  var raw=stData;
+  var items=[];
+  // standings.data structure varies by league
+  // Try: array of season objects, each with group.positions
+  function findBestPositions(obj, depth){
+    if(!obj||depth>5) return [];
+    if(Array.isArray(obj)){
+      // Could be array of positions directly
+      if(obj[0]&&(obj[0].name_ru||obj[0].name_en||obj[0].team)) return obj;
+      // Or array of season/stage objects
+      var best=[], bestLen=0;
+      obj.forEach(function(entry){
+        var found=findBestPositions(entry, depth+1);
+        if(found.length>bestLen){bestLen=found.length;best=found;}
+      });
+      return best;
+    }
+    if(obj.positions&&Array.isArray(obj.positions)&&obj.positions.length>0) return obj.positions;
+    if(obj.group) return findBestPositions(obj.group, depth+1);
+    if(obj.stage) return findBestPositions(obj.stage, depth+1);
+    if(obj.season) return findBestPositions(obj.season, depth+1);
+    return [];
+  }
+  items=findBestPositions(raw, 0);
+  console.log('standings items found:',items.length); if(items[0]) console.log('first item:',JSON.stringify(items[0]));
+  if(!items.length) return '<div style="color:#9ca3af;font-size:12px">Нет данных</div>';
+  var rows='';
+  items.forEach(function(row,i){
+    var rowTeamId=row.id||(row.team&&row.team.id);
+    var bg=(rowTeamId===hTeamId||rowTeamId===aTeamId)?'background:#fef3c7;font-weight:700':'';
+    var pos=row.n||row.position||row.rank||(i+1);
+    var tn2=(row.team&&(row.team.name_ru||row.team.name_en))||row.name_ru||row.name_en||'?';
+    var pts=row.points!=null?row.points:'';
+    var mp=row.all!=null?row.all:(row.played!=null?row.played:(row.matches_played!=null?row.matches_played:''));
+    var gs=row.scored!=null?row.scored:(row.goals_scored!=null?row.goals_scored:0);
+    var gc=row.conceded!=null?row.conceded:(row.goals_conceded!=null?row.goals_conceded:0);
+    var gd=gs-gc;
+    
+    rows+='<tr style="'+bg+'"><td>'+pos+'</td><td style="text-align:left;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(tn2)+'</td><td>'+mp+'</td><td>'+pts+'</td><td>'+gd+'</td></tr>';
+  });
+  return '<table class="st-table"><thead><tr><th>#</th><th style="text-align:left">Команда</th><th>И</th><th>О</th><th>ГР</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+async function showStats(m){
+  window._currentMatch=m;
+  var statsEl=document.getElementById('stats-panel');
+  if(!statsEl) return;
+  statsEl.innerHTML='<div style="color:#9ca3af;font-size:13px;padding:8px">Загружаем статистику...</div>';
+  
+  try{
+    if(!enr) enr=await enrich(m);
+    var hid=m.home&&m.home.id, aid=m.away&&m.away.id;
+    var hn=tn(m.home), an=tn(m.away);
+    
+    // Build odds with handicap - fetch separately
+    try{
+      var oddsR=await stGet('/st/matches/odds?id='+(m.id||m.match_id)+'&stat=goals&period=0');
+      var allOdds=(oddsR.data||[]);
+      var handicapOdds={};
+      allOdds.filter(function(o){return o.market==='handicap'&&o.period===0;}).forEach(function(o){
+        var hv=o.handicap;
+        if(hv!=null) handicapOdds[hv]=o.odd;
+      });
+      var ov35=allOdds.find(function(o){return o.market==='total'&&o.bet_type==='total_over'&&o.handicap===3.5;});
+      var un35=allOdds.find(function(o){return o.market==='total'&&o.bet_type==='total_under'&&o.handicap===3.5;});
+      enr.odds_handicap=handicapOdds;
+      if(ov35) enr.odds_parsed=enr.odds_parsed||{};
+      if(ov35) enr.odds_parsed.over_3_5=ov35.odd;
+      if(un35) enr.odds_parsed.under_3_5=un35.odd;
+    }catch(e2){}
+    
+    var html='<div class="stats-wrap">';
+    
+    // Store matches for filtering
+    window._sm={hid:hid,aid:aid,hlm:enr.home_last_matches||[],alm:enr.away_last_matches||[]};
+    
+    // Last 10 matches - home team
+    var hlm=enr.home_last_matches||[];
+    html+='<div class="stats-sec"><div class="stats-title">'+esc(hn)+'</div>';
+    html+='<div class="filter-btns" id="fb-home"><button class="fbtn active" data-mode="all" data-sec="ms-home">Все</button><button class="fbtn" data-mode="home" data-sec="ms-home">Дома</button><button class="fbtn" data-mode="away" data-sec="ms-home">Выезд</button></div>';
+    html+='<div id="ms-home">';
+    if(hlm.length){hlm.slice(0,15).forEach(function(mm){html+=fmtMatch(mm,hid);});}
+    else html+='<div style="color:#9ca3af;font-size:12px">Нет данных</div>';
+    html+='</div></div>';
+    
+    // Last 10 matches - away team  
+    var alm=enr.away_last_matches||[];
+    html+='<div class="stats-sec"><div class="stats-title">'+esc(an)+'</div>';
+    html+='<div class="filter-btns" id="fb-away"><button class="fbtn active" data-mode="all" data-sec="ms-away">Все</button><button class="fbtn" data-mode="home" data-sec="ms-away">Дома</button><button class="fbtn" data-mode="away" data-sec="ms-away">Выезд</button></div>';
+    html+='<div id="ms-away">';
+    if(alm.length){alm.slice(0,15).forEach(function(mm){html+=fmtMatch(mm,aid);});}
+    else html+='<div style="color:#9ca3af;font-size:12px">Нет данных</div>';
+    html+='</div></div>';
+    
+    // H2H
+    var h2h=enr.h2h_matches||[];
+    html+='<div class="stats-sec"><div class="stats-title">🔄 Личные встречи H2H</div>';
+    if(h2h.length){h2h.slice(0,15).forEach(function(mm){html+=fmtH2H(mm);});}
+    else html+='<div style="color:#9ca3af;font-size:12px">Нет данных</div>';
+    html+='</div>';
+    
+    // Table
+    html+='<div class="stats-sec"><div class="stats-title">📊 Таблица</div>';
+    html+=fmtTable(enr,hid,aid);
+    html+='</div>';
+    
+    // Odds
+    html+='<div class="stats-sec"><div class="stats-title">💰 Коэффициенты</div>';
+    html+=fmtOdds(enr);
+    html+='</div>';
+    
+    html+='</div>';
+    // Add refresh button at top
+    var refreshBtn='<div style="padding:0 0 10px"><button onclick="showStats(window._currentMatch)" style="width:100%;padding:6px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;font-size:12px;cursor:pointer;color:#6b7280;display:flex;align-items:center;justify-content:center;gap:4px"><span>↺</span> Обновить статистику</button></div>';
+    statsEl.innerHTML=refreshBtn+html;
+    // Add filter button listeners
+    statsEl.addEventListener('click', function(e){
+      var btn=e.target.closest('.fbtn');
+      if(!btn) return;
+      var sec=btn.getAttribute('data-sec');
+      var mode=btn.getAttribute('data-mode');
+      if(!sec||!mode) return;
+      btn.parentNode.querySelectorAll('.fbtn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      var sm=window._sm; if(!sm) return;
+      var isHome=sec==='ms-home';
+      var teamId=isHome?sm.hid:sm.aid;
+      var matches=isHome?sm.hlm:sm.alm;
+      var filtered=mode==='home'?matches.filter(function(m){return m.home&&m.home.id===teamId;}):
+                   mode==='away'?matches.filter(function(m){return m.away&&m.away.id===teamId;}):matches;
+      var el=document.getElementById(sec); if(!el) return;
+      el.innerHTML=filtered.slice(0,15).map(function(m){return fmtMatch(m,teamId);}).join('')||
+        '<div style="color:#9ca3af;font-size:12px">Нет данных</div>';
+    }, {once:false});
+  }catch(e){
+    statsEl.innerHTML='<div style="color:#ef4444;font-size:12px">Ошибка загрузки: '+esc(e.message)+'</div>';
+  }
+}
+
+// ── Transliteration ──────────────────────────────────────────────────────────
+function hasLatin(s){return s&&/[a-zA-Z]/.test(s);}
+function translit(s){
+  if(!s||!hasLatin(s)) return s;
+  // Common stadium/name parts
+  var map={
+    'Arena':'Арена','Stadium':'Стадион','Stade':'Стад','Estadio':'Эстадио',
+    'Park':'Парк','Ground':'Граунд','Field':'Филд',
+    'a':'а','b':'б','v':'в','g':'г','d':'д','e':'е','yo':'ё','zh':'ж','z':'з',
+    'i':'и','y':'й','k':'к','l':'л','m':'м','n':'н','o':'о','p':'п','r':'р',
+    's':'с','t':'т','u':'у','f':'ф','kh':'х','ts':'ц','ch':'ч','sh':'ш',
+    'shch':'щ','yu':'ю','ya':'я',
+    'A':'А','B':'Б','V':'В','G':'Г','D':'Д','E':'Е','Z':'З','I':'И',
+    'K':'К','L':'Л','M':'М','N':'Н','O':'О','P':'П','R':'Р','S':'С',
+    'T':'Т','U':'У','F':'Ф','Y':'Й',
+    // Common name prefixes
+    'Vitali':'Виталий','Vitaly':'Виталий','Alexei':'Алексей','Aleksei':'Алексей',
+    'Sergei':'Сергей','Sergey':'Сергей','Andrei':'Андрей','Andrey':'Андрей',
+    'Nikolai':'Николай','Mikhail':'Михаил','Pavel':'Павел','Ivan':'Иван',
+    'Moldovan':'Молдован','Moldovanu':'Молдовану',
+    'Yessentuki':'Есентуки','Essentuki':'Есентуки',
+  };
+  // Try word-by-word for common words
+  var words=s.split(/(\s+|-)/);
+  var result=words.map(function(w){
+    if(map[w]) return map[w];
+    return w;
+  }).join('');
+  return result;
+}
+
+// ── Parse odds for preview ─────────────────────────────────────────────────
+function parseOddsForPreview(goalsData, cornersData) {
+  var g = (goalsData && goalsData.success && goalsData.data || []).filter(function(o){return o.bk_id===16;});
+  var c = (cornersData && cornersData.success && cornersData.data || []).filter(function(o){return o.bk_id===16;});
+
+  function find(arr, market, bet_type, handicap) {
+    return arr.find(function(o){
+      return o.market===market && o.bet_type===bet_type && (handicap===undefined||o.handicap===handicap);
+    });
+  }
+  function odd(o){ return o ? parseFloat(o.odd).toFixed(2).replace('.',',') : null; }
+  function fmtHcp(v){ if(v===null||v===undefined) return null; var n=parseFloat(v); return n%1===0?'('+n+')':String(n).replace('.',','); }
+
+  // 1x2
+  var p1=find(g,'1x2','p1'), px=find(g,'1x2','px'), p2=find(g,'1x2','p2');
+
+  // double chance
+  var p1x=find(g,'double','p1x'), p12=find(g,'double','p12'), px2=find(g,'double','px2');
+
+  // totals — find main: highest handicap where over ≤2.40 (this is the "visible" main total)
+  var overs=g.filter(function(o){return o.market==='total'&&o.bet_type==='total_over';}).sort(function(a,b){return a.handicap-b.handicap;});
+  var mainOverCandidates=overs.filter(function(o){return parseFloat(o.odd)<=2.40&&o.handicap>=1.5;});
+  var mainOver=mainOverCandidates.length?mainOverCandidates[mainOverCandidates.length-1]:null;
+  var mainUnder=mainOver?find(g,'total','total_under',mainOver.handicap):null;
+  // next total: next step up from main
+  var nextOver=mainOver?overs.find(function(o){return o.handicap>mainOver.handicap;}):null;
+  var nextUnder=nextOver?find(g,'total','total_under',nextOver.handicap):null;
+  var highestOver=overs.length?overs[overs.length-1]:null;
+
+  // individual totals — skip 0.5, only where over ≤2.00 and handicap ≥1.0
+  var it1overs=g.filter(function(o){return o.market==='it1'&&o.bet_type==='it1_over'&&parseFloat(o.odd)<=2.00&&o.handicap>=1.0;}).sort(function(a,b){return a.handicap-b.handicap;});
+  var it2overs=g.filter(function(o){return o.market==='it2'&&o.bet_type==='it2_over'&&parseFloat(o.odd)<=2.00&&o.handicap>=1.0;}).sort(function(a,b){return a.handicap-b.handicap;});
+  var it1main=it1overs.length?it1overs[0]:null;
+  var it1mainUnder=it1main?find(g,'it1','it1_under',it1main.handicap):null;
+  var it2main=it2overs.length?it2overs[0]:null;
+  var it2mainUnder=it2main?find(g,'it2','it2_under',it2main.handicap):null;
+
+  // bts
+  var bts=find(g,'bts','both_to_score');
+
+  // handicaps — main (1.38–3.05), extreme (highest coef)
+  var h1all=g.filter(function(o){return o.market==='handicap'&&o.bet_type==='asian_handicap_1';});
+  var h2all=g.filter(function(o){return o.market==='handicap'&&o.bet_type==='asian_handicap_2';});
+  // main fora: find pair where both coefs in 1.38–3.05
+  var mainH1=null,mainH2=null;
+  h1all.forEach(function(h1){
+    if(mainH1) return;
+    var v1=parseFloat(h1.odd);
+    // find matching h2 (opposite handicap)
+    var h2=h2all.find(function(h){return h.handicap===-h1.handicap;});
+    if(!h2) return;
+    var v2=parseFloat(h2.odd);
+    if(v1>=1.38&&v1<=3.05&&v2>=1.38&&v2<=3.05){mainH1=h1;mainH2=h2;}
+  });
+  // extreme: highest coef overall
+  var allH=h1all.concat(h2all);
+  var extremeH=allH.length?allH.reduce(function(a,b){return parseFloat(b.odd)>parseFloat(a.odd)?b:a;}):null;
+  // additional foras with specific handicaps for text variety
+  var h1_neg15=find(g,'handicap','asian_handicap_1',-1.5);
+  var h2_pos15=find(g,'handicap','asian_handicap_2',1.5);
+  var h1_neg25=find(g,'handicap','asian_handicap_1',-2.5);
+  var h2_pos25=find(g,'handicap','asian_handicap_2',2.5);
+
+  // corners totals
+  var cOvers=c.filter(function(o){return o.market==='total'&&o.bet_type==='total_over';}).sort(function(a,b){return a.handicap-b.handicap;});
+  var cUnders=c.filter(function(o){return o.market==='total'&&o.bet_type==='total_under';}).sort(function(a,b){return a.handicap-b.handicap;});
+  var cMain=cOvers.find(function(o){return parseFloat(o.odd)<=2.40;});
+  var cMainUnder=cMain?c.find(function(o){return o.market==='total'&&o.bet_type==='total_under'&&o.handicap===cMain.handicap;}):null;
+  var cNext=cMain?cOvers.find(function(o){return o.handicap>cMain.handicap;}):null;
+  var cNextUnder=cNext?cUnders.find(function(o){return Math.abs(o.handicap-cNext.handicap)<0.01;}):null;
+  var cHighest=cOvers.length?cOvers[cOvers.length-1]:null;
+
+  // favorite verdict — based on absolute odds value
+  var fav=null;
+  var p1v=p1?parseFloat(p1.odd):null;
+  var p2v=p2?parseFloat(p2.odd):null;
+  if(p1v&&p2v&&!isNaN(p1v)&&!isNaN(p2v)){
+    if(p1v<=1.19)      fav='home_super';
+    else if(p1v<=1.49) fav='home_big';
+    else if(p1v<=1.69) fav='home_solid';
+    else if(p1v<=2.39) fav='home';
+    else if(p2v<=1.19) fav='away_super';
+    else if(p2v<=1.49) fav='away_big';
+    else if(p2v<=1.69) fav='away_solid';
+    else if(p2v<=2.39) fav='away';
+    else               fav='none';
+  }
+
+  return {
+    has_goals: g.length>0,
+    has_corners: c.length>0,
+    favorite: fav,
+    p1: odd(p1), px: odd(px), p2: odd(p2),
+    p1x: odd(p1x), p12: odd(p12), px2: odd(px2),
+    total_main: mainOver?fmtHcp(mainOver.handicap):null,
+    total_main_over: odd(mainOver), total_main_under: odd(mainUnder),
+    total_next: nextOver?fmtHcp(nextOver.handicap):null,
+    total_next_over: odd(nextOver), total_next_under: odd(nextUnder),
+    total_highest: highestOver?fmtHcp(highestOver.handicap):null, total_highest_over: odd(highestOver),
+    it1_main: it1main?fmtHcp(it1main.handicap):null, it1_main_over: odd(it1main), it1_main_under: odd(it1mainUnder),
+    it2_main: it2main?fmtHcp(it2main.handicap):null, it2_main_over: odd(it2main), it2_main_under: odd(it2mainUnder),
+    bts: odd(bts),
+    main_h1_handicap: mainH1?fmtHcp(mainH1.handicap):null, main_h1_odd: odd(mainH1),
+    main_h2_handicap: mainH2?fmtHcp(mainH2.handicap):null, main_h2_odd: odd(mainH2),
+    h1_neg15: odd(h1_neg15), h2_pos15: odd(h2_pos15),
+    h1_neg25: odd(h1_neg25), h2_pos25: odd(h2_pos25),
+    extreme_h_is_home: extremeH?(extremeH.bet_type==='asian_handicap_1'):null,
+    extreme_h_handicap: extremeH?fmtHcp(extremeH.handicap):null, extreme_h_odd: odd(extremeH),
+    corners_main: cMain?fmtHcp(cMain.handicap):null, corners_main_over: odd(cMain), corners_main_under: odd(cMainUnder),
+    corners_next: cNext?fmtHcp(cNext.handicap):null, corners_next_over: odd(cNext), corners_next_under: odd(cNextUnder),
+    corners_highest: cHighest?fmtHcp(cHighest.handicap):null, corners_highest_over: odd(cHighest),
+  };
+}
+
+// ── Generate ──────────────────────────────────────────────────────────────
+async function gen(type){
+  // null = не генерировалось, '' = очищено. Оба случая — генерируем заново
+  if(type==='p'&&pt!==null&&pt!==''){show('p');return;}
+  if(type==='f'&&ft!==null&&ft!==''){show('f');return;}
+  document.getElementById('bp').disabled=true;document.getElementById('bf').disabled=true;
+  document.getElementById('rb').innerHTML='<div class="ld"><div class="sp"></div><span style="color:#9ca3af">'+(type==='p'?'Генерируем превью...':'Генерируем прогноз...')+'</span></div>';
+  ss('Генерируем...');
+  try{
+    if(!enr)enr=await enrich(M[sid]);
+
+    // ── Preview: fetch odds and build structured data ──────────────────────
+    if(type==='p'){
+      var mid=M[sid].id||M[sid].match_id;
+      var goalsResp=null, cornersResp=null;
+      try{
+        var _pr=await Promise.all([
+          fetch('/st/matches/odds?id='+mid+'&stat=goals&period=0'),
+          fetch('/st/matches/odds?id='+mid+'&stat=corners&period=0')
+        ]);
+        goalsResp=await _pr[0].json();
+        cornersResp=await _pr[1].json();
+      }catch(e){}
+      var oddsLine=parseOddsForPreview(goalsResp,cornersResp);
+      window.currentOddsLine=oddsLine; // debug
+      var m=M[sid];
+      var dt=fdt(m.date_time);
+      // Build standings info for both teams
+      var stItems=[];
+      try{
+        function findPos(obj,depth){
+          if(!obj||depth>5) return [];
+          if(Array.isArray(obj)){
+            if(obj[0]&&(obj[0].name_ru||obj[0].name_en||obj[0].team)) return obj;
+            var best=[],bl=0;
+            obj.forEach(function(e){var f=findPos(e,depth+1);if(f.length>bl){bl=f.length;best=f;}});
+            return best;
+          }
+          if(obj.positions&&Array.isArray(obj.positions)&&obj.positions.length>0) return obj.positions;
+          if(obj.group) return findPos(obj.group,depth+1);
+          if(obj.stage) return findPos(obj.stage,depth+1);
+          if(obj.season) return findPos(obj.season,depth+1);
+          return [];
+        }
+        stItems=findPos(enr.standings&&enr.standings.data,0);
+      }catch(e){}
+      function getTeamStanding(teamId){
+        var row=stItems.filter(function(r){return (r.id||r.team&&r.team.id)===teamId;})[0];
+        if(!row) return null;
+        return {pos:row.n||row.position||row.rank||null,points:row.points!=null?row.points:null,played:row.all!=null?row.all:(row.played!=null?row.played:null)};
+      }
+      var hid3=m.home&&m.home.id, aid3=m.away&&m.away.id;
+      var homeStanding=getTeamStanding(hid3);
+      var awayStanding=getTeamStanding(aid3);
+
+      // Last 3 H2H results
+      var h2hLast3=[];
+      try{
+        var h2hArr=enr.h2h&&enr.h2h.matches||enr.h2h||[];
+        if(Array.isArray(h2hArr)){
+          h2hLast3=h2hArr.slice(0,3).map(function(hm){
+            var hg=hm.home&&hm.home.goals!=null?hm.home.goals:'?';
+            var ag=hm.away&&hm.away.goals!=null?hm.away.goals:'?';
+            var hn=tn(hm.home)||'?', an=tn(hm.away)||'?';
+            var dt2=hm.date_time?(new Date(hm.date_time)).toLocaleDateString('ru-RU',{day:'numeric',month:'long'}):'';
+            return {home:hn,away:an,score:hg+':'+ag,date:dt2};
+          });
+        }
+      }catch(e){}
+
+      // ── Build team section data ─────────────────────────────────────────
+      function buildTeamSection(matches, teamId, standing){
+        var valid=matches.filter(function(mm){return mm.home&&mm.away&&mm.home.goals!=null&&mm.away.goals!=null;});
+        if(!valid.length) return null;
+        // Last 5 with scores
+        var last5=valid.slice(0,5).map(function(mm){
+          var isHome=(mm.home.id===teamId);
+          var scored=isHome?mm.home.goals:mm.away.goals;
+          var conceded=isHome?mm.away.goals:mm.home.goals;
+          var opp=tn(isHome?mm.away:mm.home);
+          var result=scored>conceded?'W':(scored<conceded?'L':'D');
+          return {opp:opp,scored:scored,conceded:conceded,result:result,
+                  score:(isHome?scored+':'+conceded:conceded+':'+scored),
+                  home_team:tn(mm.home),away_team:tn(mm.away),
+                  home_goals:mm.home.goals,away_goals:mm.away.goals};
+        });
+        // Streak finder: find longest consistent event from most recent matches
+        var events=[
+          {key:'win',fn:function(r){return r.result==='W';},label:'победа'},
+          {key:'draw',fn:function(r){return r.result==='D';},label:'ничья'},
+          {key:'loss',fn:function(r){return r.result==='L';},label:'поражение'},
+          {key:'cs',fn:function(r){return r.conceded===0;},label:'не пропустил'},
+          {key:'scored',fn:function(r){return r.scored>0;},label:'забивал'},
+          {key:'scored2',fn:function(r){return r.scored>=2;},label:'забивал дважды и более'},
+        ];
+        var bestStreak=null;
+        events.forEach(function(ev){
+          var streak=0;
+          for(var i=0;i<valid.length;i++){
+            var mm=valid[i];
+            var isHome=(mm.home.id===teamId);
+            var scored=isHome?mm.home.goals:mm.away.goals;
+            var conceded=isHome?mm.away.goals:mm.home.goals;
+            var result=scored>conceded?'W':(scored<conceded?'L':'D');
+            var r={result:result,scored:scored,conceded:conceded};
+            if(ev.fn(r)) streak++; else break;
+          }
+          if(streak>=3&&(!bestStreak||streak>bestStreak.count)){
+            bestStreak={key:ev.key,label:ev.label,count:streak};
+          }
+        });
+        return {
+          pos:standing?standing.pos:null,
+          points:standing?standing.points:null,
+          last5:last5,
+          streak:bestStreak
+        };
+      }
+
+      var hid4=m.home&&m.home.id, aid4=m.away&&m.away.id;
+      var homeSection=enr?buildTeamSection(enr.home_last_matches||[],hid4,homeStanding):null;
+      var awaySection=enr?buildTeamSection(enr.away_last_matches||[],aid4,awayStanding):null;
+
+      // H2H dominance
+      var h2hSection=null;
+      if(enr&&(enr.h2h_matches||[]).length>=3){
+        var h2hAll=(enr.h2h_matches||[]).filter(function(mm){return mm.home&&mm.away&&mm.home.goals!=null&&mm.away.goals!=null;});
+        if(h2hAll.length>=3){
+          // Find longest streak of same winner
+          var dominantStreak=0, dominantTeam=null;
+          var h2hEvents=[
+            {teamId:hid4,label:tn(m.home)},
+            {teamId:aid4,label:tn(m.away)},
+          ];
+          h2hEvents.forEach(function(ev){
+            var streak=0;
+            for(var i=0;i<h2hAll.length;i++){
+              var mm=h2hAll[i];
+              var isHomeTeam=(mm.home.id===ev.teamId);
+              var teamGoals=isHomeTeam?mm.home.goals:mm.away.goals;
+              var oppGoals=isHomeTeam?mm.away.goals:mm.home.goals;
+              if(teamGoals>oppGoals) streak++; else break;
+            }
+            if(streak>=3&&streak>dominantStreak){dominantStreak=streak;dominantTeam=ev.label;}
+          });
+          // Count wins/draws in base window (up to 5)
+          var last5h2h=h2hAll.slice(0,Math.min(5,h2hAll.length));
+          var homeWins=last5h2h.filter(function(mm){return mm.home.id===hid4?mm.home.goals>mm.away.goals:mm.away.goals>mm.home.goals;}).length;
+          var awayWins=last5h2h.filter(function(mm){return mm.home.id===aid4?mm.home.goals>mm.away.goals:mm.away.goals>mm.home.goals;}).length;
+          var draws=last5h2h.filter(function(mm){return mm.home.goals===mm.away.goals;}).length;
+
+          // Search for strong patterns in extended windows (7–11 matches), like trend logic
+          var h2hTrends=[];
+          var h2hChecks=[
+            {key:'homeWin', fn:function(mm){return mm.home.id===hid4?mm.home.goals>mm.away.goals:mm.away.goals>mm.home.goals;}, label:tn(m.home)+' побеждает'},
+            {key:'awayWin', fn:function(mm){return mm.home.id===aid4?mm.home.goals>mm.away.goals:mm.away.goals>mm.home.goals;}, label:tn(m.away)+' побеждает'},
+            {key:'draw',    fn:function(mm){return mm.home.goals===mm.away.goals;}, label:'ничья'},
+            {key:'bts',     fn:function(mm){return mm.home.goals>0&&mm.away.goals>0;}, label:'обе команды забивают'},
+            // тотальные тренды в H2H не нужны — они идут в раздел Тотал
+          ];
+          var h2hWindows=[7,8,9,10,11];
+          h2hChecks.forEach(function(chk){
+            // streak first
+            var streak=0;
+            for(var i=0;i<h2hAll.length;i++){if(chk.fn(h2hAll[i]))streak++;else break;}
+            if(streak>=7){
+              h2hTrends.push({key:chk.key,label:chk.label,type:'streak',streak:streak,n:streak,of:streak,pct:1});
+              return;
+            }
+            // windows
+            var best=null;
+            h2hWindows.forEach(function(w){
+              if(h2hAll.length<w) return;
+              var slice=h2hAll.slice(0,w);
+              var cnt=slice.filter(chk.fn).length;
+              var pct=cnt/w;
+              if(pct>=0.70&&cnt>=5){
+                if(!best||pct>best.pct||(pct===best.pct&&cnt>best.n))
+                  best={key:chk.key,label:chk.label,type:'pct',streak:0,n:cnt,of:w,pct:pct};
+              }
+            });
+            if(best) h2hTrends.push(best);
+          });
+          // deduplicate by key, keep best
+          var h2hTrendSeen={};
+          h2hTrends=h2hTrends.filter(function(t){
+            if(h2hTrendSeen[t.key]) return false;
+            h2hTrendSeen[t.key]=true; return true;
+          });
+          h2hTrends.sort(function(a,b){return (b.streak||b.n)-(a.streak||a.n);});
+          h2hTrends=h2hTrends.slice(0,3);
+
+          h2hSection={
+            dominant_team:dominantTeam,
+            dominant_streak:dominantStreak,
+            last5:last5h2h.map(function(mm){return {home:tn(mm.home),away:tn(mm.away),score:mm.home.goals+':'+mm.away.goals};}),
+            home_wins:homeWins, away_wins:awayWins, draws:draws, of:last5h2h.length,
+            h2h_trends: h2hTrends.length>0 ? h2hTrends : null
+          };
+        }
+      }
+
+      var matchInfo={
+        home: tn(m.home), away: tn(m.away),
+        home_coach: m.home&&m.home.coach&&(m.home.coach.name_ru||m.home.coach.name)||null,
+        away_coach: m.away&&m.away.coach&&(m.away.coach.name_ru||m.away.coach.name)||null,
+        tournament: (function(){var t=tournamentWithCountry(m);return t==='__friendly__'?'товарищеском матче':t;})(),
+        stadium: translit(m.stadium&&(m.stadium.name_ru||m.stadium.name_en||m.stadium.name)||''),
+        date: dt[0], time: dt[1],
+        round: (function(){var t=tournamentWithCountry(m);return t==='__friendly__'?null:(m.round||m.tour||null);})(),
+        home_section: homeSection,
+        away_section: awaySection,
+        h2h_section: h2hSection,
+        home_last5_total: null,
+        away_last5_total: null,
+        shortcode_id: '510742', // fixed widget id
+      };
+
+      // Compute H2H total stats — only for fractional totals (2.5, 3.5)
+      delete matchInfo.home_last5_total;
+      delete matchInfo.away_last5_total;
+      // Also compute team-specific total streaks for use in Тотал section
+      if(mainTotalNum&&isFractional&&enr){
+        function teamTotalStreak(matches,total){
+          var valid=matches.filter(function(mm){return mm.home&&mm.away&&mm.home.goals!=null&&mm.away.goals!=null;});
+          if(valid.length<5) return null;
+          // streak of last N matches all over or all under
+          var last10=valid.slice(0,10);
+          var overFlags=last10.map(function(mm){return (parseInt(mm.home.goals)+parseInt(mm.away.goals))>total;});
+          var streak=0,sv=overFlags[0];
+          for(var i=0;i<overFlags.length;i++){if(overFlags[i]===sv)streak++;else break;}
+          if(streak>=5) return {streak:streak,over:sv,total:mainTotalRaw,of:last10.length};
+          return null;
+        }
+        matchInfo.home_total_streak=teamTotalStreak(enr.home_last_matches||[],mainTotalNum);
+        matchInfo.away_total_streak=teamTotalStreak(enr.away_last_matches||[],mainTotalNum);
+      }
+      var mainTotalRaw=oddsLine.total_main;
+      var mainTotalNum=mainTotalRaw?parseFloat(String(mainTotalRaw).replace(',','.')):null;
+      var isFractional=mainTotalNum&&(mainTotalNum%1!==0);
+      if(isFractional&&enr){
+        var h2hForTotal=enr.h2h_matches||[];
+        var h2hValid=h2hForTotal.filter(function(mm){
+          return mm.home&&mm.away&&mm.home.goals!=null&&mm.away.goals!=null;
+        }).slice(0,10);
+        if(h2hValid.length>=2){
+          var overFlags=h2hValid.map(function(mm){
+            return (parseInt(mm.home.goals)+parseInt(mm.away.goals))>mainTotalNum;
+          });
+          var overCount=overFlags.filter(Boolean).length;
+          // Streak from most recent
+          var streak=0, streakVal=overFlags[0];
+          for(var si=0;si<overFlags.length;si++){
+            if(overFlags[si]===streakVal) streak++;
+            else break;
+          }
+          matchInfo.h2h_last5_total={
+            over:overCount, of:h2hValid.length, total:mainTotalRaw,
+            streak:streak, streak_over:streakVal
+          };
+        }
+      }
+      // ── Compute trends for preview forecast section ──────────────────────
+      var prevTrends=[];
+      try{
+        var hmLast=enr.home_last_matches||[];
+        var amLast=enr.away_last_matches||[];
+        var h2hLast=enr.h2h_matches||[];
+
+        function ptGoals(mm){var hg=mm.home&&mm.home.goals,ag=mm.away&&mm.away.goals;return(hg!=null&&ag!=null)?hg+ag:null;}
+        function ptHW(mm){return mm.home&&mm.away&&mm.home.goals!=null&&mm.home.goals>mm.away.goals;}
+        function ptAW(mm){return mm.home&&mm.away&&mm.away.goals!=null&&mm.away.goals>mm.home.goals;}
+        function ptBTS(mm){return mm.home&&mm.away&&mm.home.goals>0&&mm.away.goals>0;}
+        function ptTB25(mm){var g=ptGoals(mm);return g!=null&&g>2.5;}
+        function ptTM25(mm){var g=ptGoals(mm);return g!=null&&g<2.5;}
+        function ptTB35(mm){var g=ptGoals(mm);return g!=null&&g>3.5;}
+        function ptTM35(mm){var g=ptGoals(mm);return g!=null&&g<3.5;}
+        function ptTB15(mm){var g=ptGoals(mm);return g!=null&&g>1.5;}
+        function ptHScores(mm,hid){return mm.home&&mm.away&&((mm.home.id===hid&&mm.home.goals>0)||(mm.away.id===hid&&mm.away.goals>0));}
+        function ptAScores(mm,aid){return mm.home&&mm.away&&((mm.home.id===aid&&mm.home.goals>0)||(mm.away.id===aid&&mm.away.goals>0));}
+
+        var hid4=M[sid].home&&M[sid].home.id;
+        var aid4=M[sid].away&&M[sid].away.id;
+
+        // Build dynamic checks based on actual odds line
+        var ptChecks=[];
+        // Main total over/under
+        if(oddsLine.total_main){
+          var tmNum=parseFloat(String(oddsLine.total_main).replace(',','.'));
+          if(tmNum===2.5){
+            ptChecks.push({key:'tb25',fn:ptTB25,label:'ТБ 2,5',oddKey:'total_main_over'});
+            ptChecks.push({key:'tm25',fn:ptTM25,label:'ТМ 2,5',oddKey:'total_main_under'});
+          } else if(tmNum===3.5){
+            ptChecks.push({key:'tb35',fn:ptTB35,label:'ТБ 3,5',oddKey:'total_main_over'});
+            ptChecks.push({key:'tm35',fn:ptTM35,label:'ТМ 3,5',oddKey:'total_main_under'});
+          } else if(tmNum===1.5){
+            ptChecks.push({key:'tb15',fn:ptTB15,label:'ТБ 1,5',oddKey:'total_main_over'});
+          }
+        }
+        // Next total
+        if(oddsLine.total_next&&oddsLine.total_next_over){
+          var tnNum=parseFloat(String(oddsLine.total_next).replace(',','.'));
+          if(tnNum===2.5) ptChecks.push({key:'tb25next',fn:ptTB25,label:'ТБ 2,5',oddKey:'total_next_over'});
+          if(tnNum===3.5) ptChecks.push({key:'tb35next',fn:ptTB35,label:'ТБ 3,5',oddKey:'total_next_over'});
+          if(tnNum===1.5) ptChecks.push({key:'tb15next',fn:ptTB15,label:'ТБ 1,5',oddKey:'total_next_over'});
+        }
+        // BTS, win outcomes
+        ptChecks.push({key:'bts',fn:ptBTS,label:'Обе забьют',oddKey:'bts'});
+        ptChecks.push({key:'hw',fn:ptHW,label:'Победа хозяев',oddKey:'p1'});
+        ptChecks.push({key:'aw',fn:ptAW,label:'Победа гостей',oddKey:'p2'});
+
+        var MIN_STREAK=5, MIN_H2H_STREAK=5, MIN_PCT=0.70, MIN_GAMES=7, MIN_ODD=1.30;
+
+        function ptStreak(arr,fn){
+          var valid=arr.filter(function(mm){return ptGoals(mm)!==null;});
+          if(!valid.length) return 0;
+          var s=0;
+          for(var i=0;i<valid.length;i++){if(fn(valid[i]))s++;else break;}
+          return s;
+        }
+        function ptPct(arr,fn){
+          var valid=arr.filter(function(mm){return ptGoals(mm)!==null;}).slice(0,10);
+          if(valid.length<MIN_GAMES) return {pct:0,n:valid.length};
+          var cnt=valid.filter(fn).length;
+          return {pct:cnt/valid.length,n:valid.length};
+        }
+
+        ptChecks.forEach(function(chk){
+          var odd=oddsLine[chk.oddKey];
+          if(!odd) return;
+          var oddNum=parseFloat(String(odd).replace(',','.'));
+          if(oddNum<MIN_ODD) return;
+
+          // Priority: streak in H2H
+          var h2hStreak=ptStreak(h2hLast,chk.fn);
+          if(h2hStreak>=MIN_H2H_STREAK){
+            prevTrends.push({type:'h2h_streak',label:chk.label,streak:h2hStreak,odd:odd,source:'h2h'});
+            return;
+          }
+
+          // Both teams 70%+ in last 7+ matches — compute streaks too
+          var hPct=ptPct(hmLast,chk.fn);
+          var aPct=ptPct(amLast,chk.fn);
+          if(hPct.pct>=MIN_PCT&&aPct.pct>=MIN_PCT){
+            var hStrk=ptStreak(hmLast,chk.fn);
+            var aStrk=ptStreak(amLast,chk.fn);
+            prevTrends.push({
+              type:'both_pct',label:chk.label,
+              home_pct:Math.round(hPct.pct*100),away_pct:Math.round(aPct.pct*100),
+              home_n:hPct.n,away_n:aPct.n,
+              home_streak:hStrk,away_streak:aStrk,
+              odd:odd,source:'teams'
+            });
+          }
+        });
+        // Take best trend (h2h_streak first, then both_pct)
+        var bestTrend=prevTrends.filter(function(t){return t.type==='h2h_streak';})[0]||prevTrends[0]||null;
+        matchInfo.preview_trend=bestTrend;
+        window.dbgTrend=bestTrend; // debug
+      }catch(e){matchInfo.preview_trend=null;window.dbgTrend='error';}
+
+      // ── Build Trends section ───────────────────────────────────────────────
+      try{
+        var hName=tn(M[sid].home), aName=tn(M[sid].away);
+        var hid5=M[sid].home&&M[sid].home.id, aid5=M[sid].away&&M[sid].away.id;
+        // Определяем матчи сборных — по коду турнира
+        var _compCode=(M[sid].competition&&M[sid].competition.code||'').toUpperCase();
+        var _compName=(M[sid].competition&&(M[sid].competition.name_ru||M[sid].competition.name_en)||'').toLowerCase();
+        var isNational=(_compCode==='WC'||_compCode==='FIFA_WC'||_compCode==='EURO'||_compCode==='UEFA_EURO'||_compCode==='CONMEBOL_WCQ'||_compCode==='UEFA_NL'||_compCode==='AFCON'||_compCode==='COPA'||_compCode==='GOLD_CUP'||_compCode==='NATIONS'||_compName.indexOf('чемпионат мира')>=0||_compName.indexOf('world cup')>=0||_compName.indexOf('euro')>=0||_compName.indexOf('кубок африки')>=0||_compName.indexOf('лига наций')>=0||_compName.indexOf('copa america')>=0||_compName.indexOf('gold cup')>=0||_compName.indexOf('товарищ')>=0);
+        function qName(n){return isNational?n:'«'+n+'»';}
+        var hlmT=enr?enr.home_last_matches||[]:[];
+        var almT=enr?enr.away_last_matches||[]:[];
+        var h2hT=enr?enr.h2h_matches||[]:[];
+
+        // Фильтруем матчи только с известным счётом
+        function validM(m){return m.home&&m.away&&m.home.goals!=null&&m.away.goals!=null;}
+        hlmT=hlmT.filter(validM);
+        almT=almT.filter(validM);
+        h2hT=h2hT.filter(validM);
+
+        // Дома для К1: матчи где К1 — хозяин
+        var hlmHome=hlmT.filter(function(m){return m.home&&m.home.id===hid5;});
+        // В гостях для К2: матчи где К2 — гость
+        var almAway=almT.filter(function(m){return m.away&&m.away.id===aid5;});
+        // H2H дома для К1: личные встречи где К1 — хозяин
+        var h2hHome=h2hT.filter(function(m){return m.home&&m.home.id===hid5;});
+
+        // Голы команды в матче
+        function teamGoals(m,tid){
+          if(m.home&&m.home.id===tid) return m.home.goals;
+          if(m.away&&m.away.id===tid) return m.away.goals;
+          return null;
+        }
+        function oppGoals(m,tid){
+          if(m.home&&m.home.id===tid) return m.away.goals;
+          if(m.away&&m.away.id===tid) return m.home.goals;
+          return null;
+        }
+        function totalGoals(m){return m.home.goals+m.away.goals;}
+
+        // Проверки событий — возвращают true/false для матча
+        var trendChecks=[
+          // Команда забивает
+          {key:'hScores',    src:'h', fn:function(m){var g=teamGoals(m,hid5);return g!=null&&g>0;},         label:function(n,s){return s+' забивает';}},
+          {key:'aScores',    src:'a', fn:function(m){var g=teamGoals(m,aid5);return g!=null&&g>0;},         label:function(n,s){return s+' забивает';}},
+          // Команда забивает 2+
+          {key:'hScores2',   src:'h', fn:function(m){var g=teamGoals(m,hid5);return g!=null&&g>=2;},        label:function(n,s){return s+' забивает минимум дважды';}},
+          {key:'aScores2',   src:'a', fn:function(m){var g=teamGoals(m,aid5);return g!=null&&g>=2;},        label:function(n,s){return s+' забивает минимум дважды';}},
+          // Команда забивает 3+
+          {key:'hScores3',   src:'h', fn:function(m){var g=teamGoals(m,hid5);return g!=null&&g>=3;},        label:function(n,s){return s+' забивает минимум трижды';}},
+          {key:'aScores3',   src:'a', fn:function(m){var g=teamGoals(m,aid5);return g!=null&&g>=3;},        label:function(n,s){return s+' забивает минимум трижды';}},
+          // Команда не забивает
+          {key:'hNoScore',   src:'h', fn:function(m){var g=teamGoals(m,hid5);return g!=null&&g===0;},       label:function(n,s){return s+' не забивает';}},
+          {key:'aNoScore',   src:'a', fn:function(m){var g=teamGoals(m,aid5);return g!=null&&g===0;},       label:function(n,s){return s+' не забивает';}},
+          // Команда пропускает 2+
+          {key:'hConc2',     src:'h', fn:function(m){var g=oppGoals(m,hid5);return g!=null&&g>=2;},        label:function(n,s){return s+' пропускает минимум дважды';}},
+          {key:'aConc2',     src:'a', fn:function(m){var g=oppGoals(m,aid5);return g!=null&&g>=2;},        label:function(n,s){return s+' пропускает минимум дважды';}},
+          // Команда побеждает
+          {key:'hWin',       src:'h', fn:function(m){var g=teamGoals(m,hid5),o=oppGoals(m,hid5);return g!=null&&o!=null&&g>o;}, label:function(n,s){return s+' побеждает';}},
+          {key:'aWin',       src:'a', fn:function(m){var g=teamGoals(m,aid5),o=oppGoals(m,aid5);return g!=null&&o!=null&&g>o;}, label:function(n,s){return s+' побеждает';}},
+          // Команда не проигрывает
+          {key:'hNoLose',    src:'h', fn:function(m){var g=teamGoals(m,hid5),o=oppGoals(m,hid5);return g!=null&&o!=null&&g>=o;},label:function(n,s){return s+' не проигрывает';}},
+          {key:'aNoLose',    src:'a', fn:function(m){var g=teamGoals(m,aid5),o=oppGoals(m,aid5);return g!=null&&o!=null&&g>=o;},label:function(n,s){return s+' не проигрывает';}},
+          // Команда не побеждает
+          {key:'hNoWin',     src:'h', fn:function(m){var g=teamGoals(m,hid5),o=oppGoals(m,hid5);return g!=null&&o!=null&&g<=o;},label:function(n,s){var v=['не побеждает','не выигрывает','не может добиться победы'];return s+' '+v[Math.floor(Math.random()*v.length)];}},
+          {key:'aNoWin',     src:'a', fn:function(m){var g=teamGoals(m,aid5),o=oppGoals(m,aid5);return g!=null&&o!=null&&g<=o;},label:function(n,s){var v=['не побеждает','не выигрывает','не может добиться победы'];return s+' '+v[Math.floor(Math.random()*v.length)];}},
+          // Ничья
+          {key:'hDraw',      src:'h', fn:function(m){var g=teamGoals(m,hid5),o=oppGoals(m,hid5);return g!=null&&o!=null&&g===o;},label:function(n,s){return s+' играет вничью';}},
+          {key:'aDraw',      src:'a', fn:function(m){var g=teamGoals(m,aid5),o=oppGoals(m,aid5);return g!=null&&o!=null&&g===o;},label:function(n,s){return s+' играет вничью';}},
+          // Победа с форой -1.5 (разница 2+)
+          {key:'hWin2',      src:'h', fn:function(m){var g=teamGoals(m,hid5),o=oppGoals(m,hid5);return g!=null&&o!=null&&(g-o)>=2;},label:function(n,s){return s+' побеждает с форой (-1,5)';}},
+          {key:'aWin2',      src:'a', fn:function(m){var g=teamGoals(m,aid5),o=oppGoals(m,aid5);return g!=null&&o!=null&&(g-o)>=2;},label:function(n,s){return s+' побеждает с форой (-1,5)';}},
+          // Тотал больше 2.5
+          {key:'tb25h',      src:'h', fn:function(m){return totalGoals(m)>2.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал больше 2,5';}},
+          {key:'tb25a',      src:'a', fn:function(m){return totalGoals(m)>2.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал больше 2,5';}},
+          // Тотал меньше 2.5
+          {key:'tm25h',      src:'h', fn:function(m){return totalGoals(m)<2.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал меньше 2,5 голов';}},
+          {key:'tm25a',      src:'a', fn:function(m){return totalGoals(m)<2.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал меньше 2,5 голов';}},
+          // Тотал больше 1.5
+          {key:'tb15h',      src:'h', fn:function(m){return totalGoals(m)>1.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал больше 1,5';}},
+          {key:'tb15a',      src:'a', fn:function(m){return totalGoals(m)>1.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал больше 1,5';}},
+          // Тотал больше 3.5
+          {key:'tb35h',      src:'h', fn:function(m){return totalGoals(m)>3.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал больше 3,5';}},
+          {key:'tb35a',      src:'a', fn:function(m){return totalGoals(m)>3.5;},                            label:function(n,s){return 'в матче с участием '+s+' — тотал больше 3,5';}},
+          // Обе забивают
+          {key:'btsH',       src:'h', fn:function(m){return m.home.goals>0&&m.away.goals>0;},               label:function(n,s){return 'обе команды забивают в матчах '+s;}},
+          {key:'btsA',       src:'a', fn:function(m){return m.home.goals>0&&m.away.goals>0;},               label:function(n,s){return 'обе команды забивают в матчах '+s;}},
+        ];
+
+        // Источники данных с метками
+        var sources={
+          h:  {matches:hlmT,   name:hName},
+          a:  {matches:almT,   name:aName},
+          hH: {matches:hlmHome,name:hName},
+          aA: {matches:almAway,name:aName},
+          h2h:{matches:h2hT,   name:null},
+          h2hH:{matches:h2hHome,name:null},
+        };
+
+        var foundTrends=[];
+
+        trendChecks.forEach(function(chk){
+          var srcKey=chk.src; // h или a
+          // Проверяем все источники для этой команды
+          var srcsToCheck=[];
+          if(srcKey==='h') srcsToCheck=[
+            {arr:hlmT,   label:chk.label(0,hName), suffix:''},
+            {arr:hlmHome,label:chk.label(0,hName)+' дома', suffix:' дома'},
+          ];
+          if(srcKey==='a') srcsToCheck=[
+            {arr:almT,   label:chk.label(0,aName), suffix:''},
+            {arr:almAway,label:chk.label(0,aName)+' в гостях', suffix:' в гостях'},
+          ];
+
+          srcsToCheck.forEach(function(src){
+            var arr=src.arr;
+            if(arr.length<7) return; // минимум 7 матчей в источнике
+
+            // 1. Ищем подряд (streak)
+            var streak=0;
+            for(var i=0;i<arr.length;i++){
+              if(chk.fn(arr[i])) streak++;
+              else break;
+            }
+            if(streak>=7){
+              foundTrends.push({
+                type:'streak', streak:streak, n:streak, of:streak,
+                label:src.label, key:chk.key+src.suffix, src:srcKey
+              });
+              return;
+            }
+
+            // 2. Ищем N из M (≥70%, минимум 5 из 7, берём окно до 11 матчей)
+            var windows=[7,8,9,10,11];
+            var best=null;
+            windows.forEach(function(w){
+              if(arr.length<w) return;
+              var slice=arr.slice(0,w);
+              var cnt=slice.filter(chk.fn).length;
+              var pct=cnt/w;
+              if(pct>=0.70&&cnt>=5){
+                if(!best||pct>best.pct||(pct===best.pct&&cnt>best.n)){
+                  best={type:'pct',streak:0,n:cnt,of:w,pct:pct,label:src.label,key:chk.key+src.suffix,src:srcKey};
+                }
+              }
+            });
+            if(best) foundTrends.push(best);
+          });
+        });
+
+        // Дедупликация
+        var seen={};
+        foundTrends=foundTrends.filter(function(t){
+          var k=t.key;
+          if(!seen[k]){seen[k]=t;return true;}
+          var prev=seen[k];
+          if(t.type==='streak'&&prev.type!=='streak'){seen[k]=t;return true;}
+          if(prev.type==='streak'&&t.type!=='streak') return false;
+          if(t.streak>prev.streak||(t.streak===prev.streak&&t.n>prev.n)){seen[k]=t;return true;}
+          return false;
+        });
+        var specificKeys={};
+        foundTrends.forEach(function(t){
+          if(t.key.indexOf(' дома')>=0||t.key.indexOf(' в гостях')>=0)
+            specificKeys[t.key.replace(' дома','').replace(' в гостях','')]=true;
+        });
+        foundTrends=foundTrends.filter(function(t){
+          if(t.key.indexOf(' дома')<0&&t.key.indexOf(' в гостях')<0&&specificKeys[t.key]) return false;
+          return true;
+        });
+
+        // Сортировка: streak первые, потом по длине серии/n убыванием
+        foundTrends.sort(function(a,b){
+          if(a.type==='streak'&&b.type!=='streak') return -1;
+          if(b.type==='streak'&&a.type!=='streak') return 1;
+          return (b.streak||b.n)-(a.streak||a.n);
+        });
+
+        // Топ-7
+        foundTrends=foundTrends.slice(0,7);
+
+        // Форматируем строки
+        if(foundTrends.length>=3){
+          var tLines=foundTrends.map(function(t){
+            var lbl=t.label;
+            var verbs=['не проигрывает','не побеждает','не выигрывает','не может добиться победы','забивает минимум дважды','забивает минимум трижды','забивает','не забивает','пропускает','побеждает с форой (-1,5)','побеждает','не проигрывает','играет вничью'];
+            var isTeamLbl=(lbl.indexOf('в матче с участием')<0&&lbl.indexOf('обе команды')<0);
+            var locSfx='';
+            if(t.key&&t.key.indexOf(' дома')>=0) locSfx=' дома';
+            if(t.key&&t.key.indexOf(' в гостях')>=0) locSfx=' в гостях';
+            var teamName=lbl, action='';
+            if(isTeamLbl){
+              for(var vi=0;vi<verbs.length;vi++){
+                var vp=lbl.indexOf(verbs[vi]);
+                if(vp>0){teamName=lbl.substring(0,vp).trim();action=lbl.substring(vp).trim();break;}
+              }
+            }
+            var effectiveLoc=(action&&locSfx&&action.indexOf(locSfx.trim())>=0)?'':locSfx;
+            var actionWithLoc;
+            if(effectiveLoc&&action){
+              var minIdx=action.indexOf(' минимум');
+              if(minIdx>0){
+                actionWithLoc=action.substring(0,minIdx)+effectiveLoc+action.substring(minIdx);
+              } else {
+                actionWithLoc=action+effectiveLoc;
+              }
+            } else {
+              actionWithLoc=action;
+            }
+            var line='';
+            if(t.type==='streak'){
+              var locWS=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
+              if(isTeamLbl&&action){
+                var actionClean=action;
+                if(locWS&&actionClean.indexOf(' дома')>=0) actionClean=actionClean.replace(/ дома$/,'');
+                if(locWS&&actionClean.indexOf(' в гостях')>=0) actionClean=actionClean.replace(/ в гостях$/,'');
+                line='В '+t.streak+' последних '+locWS+'матчах '+qName(teamName)+' '+actionClean;
+              } else {
+                // For total-type labels: «в матче с участием X — тотал больше Y»
+                var mBtsS=lbl.match(/обе команды забивают в матчах (.+)/i);
+                if(mBtsS){
+                  var btsLoc=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
+                  var btsTeamS=mBtsS[1].trim().replace(/ дома$/,'').replace(/ в гостях$/,'');
+                  var btsVar=Math.floor(Math.random()*3);
+                  if(btsVar===0) line='В '+t.streak+' последних '+btsLoc+'матчах '+qName(btsTeamS)+' забивают обе команды';
+                  else if(btsVar===1) line='В '+t.streak+' последних '+btsLoc+'выездах '+qName(btsTeamS)+' отличились обе команды';
+                  else line='В '+t.streak+' последних '+btsLoc+'матчах '+qName(btsTeamS)+' прошла ставка «обе забьют»';
+                } else
+                var mST=lbl.match(/в матче с участием (.+?) — (.+)/i);
+                if(mST){
+                  var stName=mST[1].trim(), stEvent=mST[2].trim();
+                  var stLoc=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
+                  var stEventF=stEvent.indexOf('тотал')>=0?stEvent.replace('тотал','проходит тотал'):stEvent;
+                  line='В '+t.streak+' последних '+stLoc+'матчах '+qName(stName)+' '+stEventF;
+                } else {
+                  line=lbl+' — в '+t.streak+' матчах подряд';
+                }
+              }
+            } else {
+              var sfx=['матчей','игр','встреч'][Math.floor(Math.random()*3)];
+              if(isTeamLbl&&action){
+                line=qName(teamName)+' '+actionWithLoc+' — в '+t.n+' из '+t.of+' последних '+sfx;
+              } else {
+                // BTS: «обе команды забивают в матчах X»
+                var mBts=lbl.match(/обе команды забивают в матчах (.+)/i);
+                if(mBts){
+                  var locW2=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
+                  var btsTeamP=mBts[1].trim().replace(/ дома$/,'').replace(/ в гостях$/,'');
+                  var btsV=Math.floor(Math.random()*3);
+                  if(btsV===0) line='В '+t.n+' из '+t.of+' последних '+locW2+'матчей '+qName(btsTeamP)+' забивают обе команды';
+                  else if(btsV===1) line='В '+t.n+' из '+t.of+' последних '+locW2+'выездов '+qName(btsTeamP)+' отличились обе команды';
+                  else line='В '+t.n+' из '+t.of+' последних '+locW2+'матчей '+qName(btsTeamP)+' прошла ставка «обе забьют»';
+                } else
+                var m1=lbl.match(/в матче с участием (.+?) — (.+)/i);
+                if(m1){
+                  var tPt=m1[1].trim(), ePt=m1[2].trim();
+                  var locW=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
+                  var eF=ePt;
+                  if(ePt.indexOf('тотал меньше')>=0||ePt.indexOf('голов')>=0)
+                    eF=Math.random()<0.5?'проходит тотал меньше 2,5':'забивается не больше двух голов';
+                  else if(ePt.indexOf('тотал больше')>=0)
+                    eF=ePt.replace('тотал больше','проходит тотал больше');
+                  var eFclean=eF;
+                  if(locW&&locSfx){
+                    var locTrim=locSfx.trim();
+                    var re=new RegExp('[\\s]+'+locTrim.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$');
+                    eFclean=eF.replace(re,'');
+                  }
+                  line='В '+t.n+' из '+t.of+' последних '+locW+'матчей '+qName(tPt)+' '+eFclean;
+                } else {
+                  line='В '+t.n+' из '+t.of+' последних матчей — '+lbl;
+                }
+              }
+            }
+            return line;
+          });
+          matchInfo.trends_text=tLines.map(function(l,i){
+            return '• '+l+(i===tLines.length-1?'.':';');
+          }).join('\n');
+          matchInfo.trends_lines=tLines;
+        } else {
+          matchInfo.trends_lines=null;
+        }
+      }catch(e){matchInfo.trends_lines=null;}
+
+      // Add formatted p1/p2 for shortcodes
+      if(oddsLine.p1) matchInfo.p1_shortcode=parseFloat(String(oddsLine.p1).replace(',','.')).toFixed(2);
+      if(oddsLine.p2) matchInfo.p2_shortcode=parseFloat(String(oddsLine.p2).replace(',','.')).toFixed(2);
+
+      var _pextra=(await stLoad()).prompt_extra||'';
+      var sys=PS+(_pextra?'\n\nДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА РЕДАКТОРА:\n'+_pextra:'')+editsContext(type);
+      var _tb='';
+      if(matchInfo.trends_text){
+        _tb='\n\nТРЕНДЫ:\n'+matchInfo.trends_text;
+        delete matchInfo.trends_text;delete matchInfo.trends_lines;
+      }
+      userMsg='ДАННЫЕ МАТЧА:\\n'+JSON.stringify(matchInfo,null,2)+'\\n\\nДАННЫЕ ЛИНИИ:\\n'+JSON.stringify(oddsLine,null,2)+_tb+'\\n\\nНапиши превью строго по шаблону.';
+      var txt=await cl(sys,userMsg,2048);
+      // Remove broken UTF-8 emoji artifacts
+      txt=txt.replace(/[\uD800-\uDFFF]|[\u{1F000}-\u{1FFFF}]/gu,'').replace(/[^\x00-\xFF\u0400-\u04FF\u2000-\u206F\u2190-\u21FF\u2600-\u27BF«»—–]/g,'');
+
+      // Inject shortcodes
+      try{
+        var scId=matchInfo.shortcode_id||'510742';
+        var sc1=matchInfo.p1_shortcode;
+
+        // SC1: after Команды section
+        if(sc1){
+          var sc1tag="\n\n[rb_bet title='П1' id='"+scId+"' odds='"+sc1+"']\n";
+          txt=txt.replace(/(###\s*Команды[\s\S]*?)(\n+###)/i, '$1'+sc1tag+'$2');
+        }
+
+        // SC2: after Форы section - use main handicap odd if >=1.48, else use h1_neg15
+        var h1odd=oddsLine.main_h1_odd?parseFloat(String(oddsLine.main_h1_odd).replace(',','.')):null;
+        var h1hcp=oddsLine.main_h1_handicap||'0';
+        var sc2title, sc2odds;
+        if(h1odd&&h1odd>=1.48){
+          var rawHcp=(h1hcp||'0').replace(/[{}]/g,'');
+          // fmtHcp wraps integers in parens: (-1), fractional without: -1,5
+          sc2title=rawHcp.startsWith('(')?'Фора 1 '+rawHcp:'Фора 1 ('+rawHcp+')';
+          sc2odds=parseFloat(String(oddsLine.main_h1_odd).replace(',','.')).toFixed(2);
+        } else if(oddsLine.h1_neg15){
+          sc2title='Фора 1 (-1,5)';
+          sc2odds=parseFloat(String(oddsLine.h1_neg15).replace(',','.')).toFixed(2);
+        }
+        if(sc2title&&sc2odds){
+          var sc2tag="\n\n[rb_bet title='"+sc2title+"' id='"+scId+"' odds='"+sc2odds+"']";
+          txt=txt.replace(/(###\s*Фор[ыа][\s\S]*?)(\n+###|\s*$)/i, '$1'+sc2tag+'$2');
+        }
+
+        // SC3: after Прогноз section - extract bet and odds from "Прогноз: X с коэффициентом Y"
+        var progMatch=txt.match(/Прогноз:\s*([^\n]+?)\s+с\s+коэффициентом\s+([\d,\.]+)/i);
+        if(progMatch){
+          var sc3title=progMatch[1].trim();
+          sc3title=sc3title.charAt(0).toUpperCase()+sc3title.slice(1);
+          var sc3odds=parseFloat(progMatch[2].replace(',','.')).toFixed(2);
+          var sc3tag="\n\n[rb_bet title='"+sc3title+"' id='"+scId+"' odds='"+sc3odds+"']";
+          txt=txt.replace(/(Прогноз:[^\n]+)(\s*$)/i, '$1'+sc3tag+'$2');
+        }
+      }catch(e){}
+
+      pt=txt; saveTexts();
+      show(type); ss('Готово ✓');
+      document.getElementById('bp').disabled=false;
+      document.getElementById('bf').disabled=false;
+      return;
+    }
+    // ── Forecast: trend check ─────────────────────────────────────────────
+    if(type==='f'){
+      var hid2=M[sid].home&&M[sid].home.id;
+      var aid2=M[sid].away&&M[sid].away.id;
+      var hlm2=enr.home_last_matches||[];
+      var alm2=enr.away_last_matches||[];
+      var h2h2=enr.h2h_matches||[];
+
+      function goals(m){var h=m.home&&m.home.goals,a=m.away&&m.away.goals;return(h!=null&&a!=null)?h+a:null;}
+      function homeWin(m){return m.home&&m.away&&m.home.goals!=null&&m.home.goals>m.away.goals;}
+      function awayWin(m){return m.home&&m.away&&m.away.goals!=null&&m.away.goals>m.home.goals;}
+      function draw(m){return m.home&&m.away&&m.home.goals!=null&&m.home.goals===m.away.goals;}
+      function noLoseH(m){return m.home&&m.away&&m.home.goals!=null&&m.home.goals>=m.away.goals;}
+      function noLoseA(m){return m.home&&m.away&&m.away.goals!=null&&m.away.goals>=m.home.goals;}
+      function tb25(m){var g=goals(m);return g!=null&&g>2.5;}
+      function tm25(m){var g=goals(m);return g!=null&&g<2.5;}
+      function tb15(m){var g=goals(m);return g!=null&&g>1.5;}
+      function tm15(m){var g=goals(m);return g!=null&&g<1.5;}
+      function tb35(m){var g=goals(m);return g!=null&&g>3.5;}
+      function tm35(m){var g=goals(m);return g!=null&&g<3.5;}
+      function bts(m){return m.home&&m.away&&m.home.goals!=null&&m.away.goals!=null&&m.home.goals>0&&m.away.goals>0;}
+      function hScores(m){return (m.home&&m.home.id===hid2&&m.home.goals>0)||(m.away&&m.away.id===hid2&&m.away.goals>0);}
+      function aScores(m){return (m.home&&m.home.id===aid2&&m.home.goals>0)||(m.away&&m.away.id===aid2&&m.away.goals>0);}
+
+      // All available match sets
+      var homeMH=hlm2.filter(function(m){return m.home&&m.home.id===hid2;});
+      var awayMA=alm2.filter(function(m){return m.away&&m.away.id===aid2;});
+      var h2hHomeDome=h2h2.filter(function(m){return m.home&&m.home.id===hid2;});
+      var h2hAwayAway=h2h2.filter(function(m){return m.away&&m.away.id===aid2;});
+
+      var sets=[
+        {matches:homeMH,      label:'хозяин дома', team:'home'},
+        {matches:awayMA,      label:'гость на выезде', team:'away'},
+        {matches:hlm2,        label:'хозяин (все матчи)', team:'home'},
+        {matches:alm2,        label:'гость (все матчи)', team:'away'},
+        {matches:h2h2,        label:'личные встречи', team:'both'},
+        {matches:h2hHomeDome, label:'личные встречи дома', team:'home'},
+        {matches:h2hAwayAway, label:'личные встречи в гостях', team:'away'},
+      ];
+
+      var events=[
+        {fn:tb25,    label:'ТБ 2,5'},
+        {fn:tm25,    label:'ТМ 2,5'},
+        {fn:tb15,    label:'ТБ 1,5'},
+        {fn:tm15,    label:'ТМ 1,5'},
+        {fn:tb35,    label:'ТБ 3,5'},
+        {fn:tm35,    label:'ТМ 3,5'},
+        {fn:bts,     label:'обе забьют'},
+        {fn:homeWin, label:'победа хозяина'},
+        {fn:awayWin, label:'победа гостя'},
+        {fn:draw,    label:'ничья'},
+        {fn:noLoseH, label:'хозяин не проигрывает'},
+        {fn:noLoseA, label:'гость не проигрывает'},
+        {fn:hScores, label:'хозяин забивает'},
+        {fn:aScores, label:'гость забивает'},
+      ];
+
+      var trends=[];
+
+      sets.forEach(function(s){
+        var n=s.matches.length;
+        if(n<7) return;
+        events.forEach(function(ev){
+          var passes=s.matches.filter(ev.fn).length;
+          var pct=passes/n;
+          // 70%+ on 7+ matches OR 100% on 10+ matches (lower coef threshold)
+          var strong=(pct>=0.70&&n>=7)||(pct>=1.0&&n>=10);
+          if(strong){
+            trends.push({
+              label:ev.label+' ('+s.label+')',
+              pct:pct, n:n, passes:passes,
+              lowCoef:(pct>=1.0&&n>=10)
+            });
+          }
+        });
+      });
+
+      // Sort by strength: 100% first, then by percentage
+      trends.sort(function(a,b){return b.pct-a.pct||b.n-a.n;});
+
+      if(trends.length===0){
+        document.getElementById('rb').innerHTML=
+          '<div style="padding:20px;text-align:center;color:#6b7280;font-size:15px;background:#f9fafb;border-radius:8px;margin-top:8px">'+
+          '📊 Устойчивые тренды отсутствуют</div>';
+        btn.disabled=false;
+        ss('Тренды не найдены');
+        return;
+      }
+
+      // Build summary for Claude
+      enr._trends_summary='НАЙДЕННЫЕ СЕРИИ (использовать только эти цифры, не додумывать):\n'+
+        trends.map(function(t){
+          var minCoef=t.lowCoef?'коэф от 1,37':'коэф от 1,56';
+          return '• '+t.label+': '+t.passes+' из '+t.n+' ('+Math.round(t.pct*100)+'%) — '+minCoef;
+        }).join('\n');
+
+      // ── Attach odds from preview if available ───────────────────────────
+      if(!enr._odds_line){
+        try{
+          var mid2=M[sid].id||M[sid].match_id;
+          var _pr2=await Promise.all([
+            fetch('/st/matches/odds?id='+mid2+'&stat=goals&period=0'),
+            fetch('/st/matches/odds?id='+mid2+'&stat=corners&period=0')
+          ]);
+          var goalsResp2=await _pr2[0].json();
+          var cornersResp2=await _pr2[1].json();
+          enr._odds_line=parseOddsForPreview(goalsResp2,cornersResp2);
+        }catch(e){}
+      }
+
+      // ── Send to Claude ────────────────────────────────────────────────────
+      var _pextra2=(await stLoad()).prompt_extra||'';
+      var sys=FS+(_pextra2?'\n\nДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА РЕДАКТОРА:\n'+_pextra2:'')+editsContext(type);
+      var kfEl=document.getElementById('kf');
+      var kfText=(kfEl?kfEl.value.trim():'')||window._kfSaved||'';
+      if(kfText) window._kfSaved=kfText;
+      var kfPrefix=kfText?'ОБЯЗАТЕЛЬНО ВКЛЮЧИ В ТЕКСТ СЛЕДУЮЩИЕ ФАКТЫ (они важнее всего остального):\n'+kfText+'\n\n':'';
+      var txt=await cl(sys,(enr._trends_summary?'📊 '+enr._trends_summary+'\n\n':'')+kfPrefix+'Напиши прогноз на основе данных:\n\n'+JSON.stringify(enr,null,2),2048);
+      ft=txt; saveTexts();
+      show(type); ss('Готово ✓');
+    }
+  }catch(e){
+    document.getElementById('rb').innerHTML='<div style="padding:14px;color:#ef4444"><b>Ошибка:</b> '+esc(e.message)+'</div>';
+    ss('Ошибка');
+  }finally{
+    document.getElementById('bp').disabled=false;document.getElementById('bf').disabled=false;
+  }
+}
+
+// ── Show result ───────────────────────────────────────────────────────────
+function show(type){
+  var el=document.getElementById('rb');if(!el)return;
+  _lastShown=type;
+  var txt=type==='p'?pt:ft;
+
+  // Показываем табы если есть хоть что-то в обоих (включая пустые поля)
+  var hasBoth = (pt!==null && ft!==null);
+  var tabs=hasBoth?'<div class="tabs">'+
+    '<div class="tab '+(type==='p'?'tp':'')+'" onclick="show(\'p\')">📝 Превью</div>'+
+    '<div class="tab '+(type==='f'?'tf':'')+'" onclick="show(\'f\')">🎯 Прогноз</div>'+
+    '</div>':'';
+
+  var crit='';
+  if(type==='p'&&cr){
+    var sc=cr.score||0,cls=sc>=9?'#16a34a':sc>=6?'#d97706':'#ef4444';
+    crit='<div class="critic-row"><span style="font-weight:700;color:'+cls+'">'+sc+'/10</span> Фактчекер: '+esc(cr.verdict||'')+'</div>';
+  }
+  var editsCount=EDITS.filter(function(e){return e.type===type;}).length;
+  var editsNote=editsCount>0?'<div class="edits-note">💡 Сохранено '+editsCount+' правок — учитываются в следующих генерациях</div>':'';
+
+  el.innerHTML='<div class="rc">'+tabs+
+    '<div class="rh"><span class="rl">'+(type==='p'?'📝 Превью':'🎯 Прогноз')+'</span>'+
+    '<div style="display:flex;gap:6px;margin-left:auto">'+
+    '<button class="rbtn save-btn" id="btnSave" onclick="saveEdit(\''+type+'\')">💾 Сохранить</button>'+
+    '<button class="rbtn" onclick="regen(\''+type+'\')">↺ Заново</button>'+
+    '<button class="rbtn" onclick="clearOne(\''+type+'\')">✕ Очистить</button>'+
+    '<button class="rbtn" onclick="openPublishModal(\''+type+'\')">📤 Сохранить для публикации</button>'+
+    '<button class="rbtn" id="btnCopy" onclick="doCopy(\''+type+'\')">⎘ Копировать</button>'+
+    '</div></div>'+
+    '<div class="rb" id="rbedit" contenteditable="true" spellcheck="false">'+(txt?md(txt):'')+'</div>'+
+    crit+editsNote+'</div>';
+}
+
+// ── Clear one tab (leaves empty editable field) ───────────────────────────
+function clearOne(type){
+  if(type==='p'){pt='';cr=null;}else{ft='';}
+  saveTexts();
+  show(type);
+  ss(sid&&M[sid]?tn(M[sid].home)+' — '+tn(M[sid].away):'');
+}
+
+// ── Save edit ─────────────────────────────────────────────────────────────
+function saveEdit(type){
+  var el=document.getElementById('rbedit');if(!el)return;
+  var edited=el.innerText||el.textContent||'';
+  var original=type==='p'?pt:ft;
+  addEdit(original,edited,type);
+  if(type==='p')pt=edited;else ft=edited;
+  saveTexts();
+  var btn=document.getElementById('btnSave');
+  if(btn){btn.textContent='✓ Сохранено';btn.classList.add('saved');
+    setTimeout(function(){var b=document.getElementById('btnSave');if(b){b.textContent='💾 Сохранить';b.classList.remove('saved');}},2000);}
+  ss('Правка сохранена ✓');
+  var ec=EDITS.filter(function(e){return e.type===type;}).length;
+  var note=document.querySelector('.edits-note');
+  if(note)note.textContent='💡 Сохранено '+ec+' правок — учитываются в следующих генерациях';
+  else{var rc=document.querySelector('.rc');if(rc){var d=document.createElement('div');d.className='edits-note';d.textContent='💡 Сохранено '+ec+' правок — учитываются в следующих генерациях';rc.appendChild(d);}}
+}
+
+function md(t){
+  var h=esc(t);
+  h=h.replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  // ### rendered as bold paragraph heading
+  h=h.replace(/^### (.+)$/gm,'<p><strong>$1</strong></p>');
+  h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  // shortcodes styled as code-like gray blocks
+  h=h.replace(/(\[rb_bet[^\]]+\])/g,'<code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px;color:#374151;display:inline-block;margin:4px 0">$1</code>');
+  var allLines=h.split(/\n/);
+  var out=[],buf=[];
+  function flushBuf(){if(buf.length){out.push('<ul style="margin:6px 0 8px 0;padding-left:18px">'+buf.join('')+'</ul>');buf=[];}}
+  allLines.forEach(function(ln){
+    var tr=ln.trim();
+    if(tr.indexOf('•')===0){buf.push('<li style="margin:2px 0">'+tr.substring(1).trim()+'</li>');}
+    else{flushBuf();if(tr)out.push(tr);}
+  });
+  flushBuf();
+  var joined=out.join('\n');
+  return joined.split(/\n\n+/).map(function(p){
+    p=p.trim();if(!p)return'';
+    if(p.indexOf('<ul')===0||p.indexOf('<p><strong>')===0||p.indexOf('<h')===0)return p;
+    return'<p>'+p.replace(/\n/g,'<br>')+'</p>';
+  }).join('');
+}
+
+// ── Odds Debug ────────────────────────────────────────────────────────────
+async function showOddsDebug(){
+  var m=M[sid]; if(!m){alert('Матч не выбран');return;}
+  var id=m.id||m.match_id;
+  var modal=document.getElementById('oddsDebugModal');
+  var content=document.getElementById('oddsDebugContent');
+  content.textContent='Загружаем...';
+  modal.classList.add('open');
+  try{
+    var results={};
+    var types=['goals','corners','yellow_cards','red_cards','penalties','correct_score','score','exact_score','cards'];
+    await Promise.all(types.map(async function(stat){
+      try{
+        var r=await fetch('/st/matches/odds?id='+id+'&stat='+stat+'&period=0');
+        var d=await r.json();
+        // Показываем только успешные или первую ошибку для диагностики
+        if(d.success||stat==='goals'||stat==='corners') results[stat]=d;
+        else results[stat]={success:d.success,error:d.error};
+      }catch(e){results[stat]={error:e.message};}
+    }));
+    content.textContent=JSON.stringify(results,null,2);
+  }catch(e){
+    content.textContent='Ошибка: '+e.message;
+  }
+}
+
+async function regen(type){
+  if(type==='p'){pt=null;cr=null;}else ft=null;
+  gen(type);
+}
+
+async function doCopy(type){
+  // Use raw markdown text with proper blank lines between sections
+  var raw=type==='p'?pt:ft;
+  // Format: ensure blank line before each ### heading and after shortcodes
+  var t=raw?raw
+    .replace(/([^\n])\n(###)/g,'$1\n\n$2')   // blank line before ###
+    .replace(/(###[^\n]+)\n([^\n#\[])/g,'$1\n\n$2') // blank line after heading
+    .replace(/(\[rb_bet[^\]]+\])\n(\S)/g,'$1\n\n$2') // blank line after shortcode
+    .replace(/\n{3,}/g,'\n\n')                 // max 2 newlines
+    .trim():'';
+  // Strip ### markers, keep text as bold would appear
+  t=t.replace(/^### (.+)$/gm,'$1');
+  try{
+    await navigator.clipboard.writeText(t||'');
+    var b=document.getElementById('btnCopy');
+    if(b){b.textContent='✓ Скопировано';b.classList.add('copied');
+      setTimeout(function(){var bb=document.getElementById('btnCopy');if(bb){bb.textContent='⎘ Копировать';bb.classList.remove('copied');}},2000);}
+  }catch(e){alert('Выделите текст вручную');}
+}
+
+// ── Prompts ───────────────────────────────────────────────────────────────
+var PS='Ты пишешь ставочное превью на футбольный матч. Используй ТОЛЬКО данные из раздела ДАННЫЕ ЛИНИИ. Не додумывай, не галлюцинируй, не добавляй ничего от себя.\n\nГЛАВНОЕ ПРАВИЛО:\nВесь материал основан исключительно на данных из линии матча. Если каких-то позиций нет в данных (null) — эта часть пропускается. Запрещено использовать другие данные, додумывать или выдумывать информацию.\n\nФОРМАТ ТЕКСТА:\nКаждый раздел — единый связный абзац без переносов строк внутри. Все предложения идут подряд через пробел. Переносы строки только между разделами (### заголовок).\n\nРАЗНООБРАЗИЕ В УПОМИНАНИИ КОМАНД:\nЧередуй разные способы обозначать команды — не повторяй один и тот же вариант подряд:\n- Кавычки ТОЛЬКО для: клубных команд («Барселона», «Реал», «Спартак»), названий стадионов («Лужники», «Камп Ноу»), ставки «12» и «обе забьют». Направления тотала: «верх», «низ». ЗАПРЕЩЕНО ставить кавычки на: сборные (Франция, Шотландия, Гаити, США и т.д.), турниры, города, любые другие слова\n- Сборные (названия стран) — БЕЗ кавычек: Нидерланды, Франция, Испания, Германия, Бразилия и т.д.\n- Роль: хозяева / гости / принимающая сторона\n- Тренер (если home_coach/away_coach не null и имя на кириллице): «команда [тренер]» / «банда [тренер]» / «игроки [тренер]»\n\nСКЛОНЕНИЕ КОМАНД:\nНазвания команд склоняются по-русски везде кроме заголовка раздела:\n- «На победу «Ливерпуля»» (родительный падеж)\n- «коэффициент на то, что «Ливерпуль» не проиграет» (именительный — после «что»)\n- «аналогичный вариант для «Расинга»» (родительный)\nЕсли название не склоняется по-русски (иностранное, аббревиатура) — оставь как есть.\n\nОПРЕДЕЛЕНИЯ:\n- favorite="home_super" → случайно один из: «Букмекеры считают хозяев суперфаворитами встречи» / «Букмекерским суперфаворитом матча считается «[home]»» / «Букмекеры считают хозяев суперфаворитами этого противостояния»\n- favorite="home_big" → случайно один из: «Букмекеры считают хозяев большими фаворитами встречи» / «Букмекерским фаворитом встречи с большим перевесом считается «[home]»» / «Букмекеры видят хозяев явными фаворитами»\n- favorite="home_solid" → случайно один из: «Букмекеры считают хозяев приличными фаворитами» / «Букмекерским фаворитом встречи считается «[home]»» / «Букмекерским фаворитом встречи считаются хозяева»\n- favorite="home" → случайно один из: «Букмекеры считают хозяев фаворитами встречи» / «Букмекерским фаворитом встречи считается «[home]»» / «Букмекерским фаворитом матча считаются хозяева»\n- favorite="away_super" → случайно один из: «Букмекеры считают гостей суперфаворитами встречи» / «Букмекерским суперфаворитом матча считается «[away]»» / «Букмекеры считают гостей суперфаворитами этого противостояния»\n- favorite="away_big" → случайно один из: «Букмекеры считают гостей большими фаворитами встречи» / «Букмекерским фаворитом встречи с большим перевесом считается «[away]»» / «Букмекеры видят гостей явными фаворитами»\n- favorite="away_solid" → случайно один из: «Букмекеры считают гостей приличными фаворитами» / «Букмекерским фаворитом встречи считается «[away]»» / «Букмекерским фаворитом встречи считаются гости»\n- favorite="away" → случайно один из: «Букмекеры считают гостей фаворитами встречи» / «Букмекерским фаворитом встречи считается «[away]»» / «Букмекерским фаворитом матча считаются гости»\n- favorite="none" → «Букмекеры не выделяют явного фаворита в этой встрече»\n- extreme_h_is_home=true → крайняя фора на хозяев ([home]), false → на гостей ([away])\n\nФОРМАТ ЧИСЕЛ:\nКоэффициенты: 1,40 / 2,00 / 6,54 (запятая, всегда два знака после запятой)\nТоталы: если число с запятой — «2,5 гола», если в скобках — «(2) гола»\n\nЗАПРЕЩЕНО:\n- Стадион: пиши «на стадионе «Название»» с кавычками — НО только если название НЕ содержит слово «стадион». Если название содержит слово «стадион» (в любом месте — в начале, середине, конце) — НЕ пиши «на стадионе», а используй само название как предложный оборот: «Муниципальный стадион Флориды» → «на Муниципальном стадионе Флориды»; «Стадион Рамаз Шенгелиас Сахелобис» → «на стадионе Рамаз Шенгелиас Сахелобис» (без кавычек). Если название содержит «имени» или «им.» — без кавычек: «на стадионе имени Каджимукана Мунайтпасова». Если stadium содержит латинские буквы — транслитерируй название в кириллицу по правилам русской транслитерации.\n- Английский язык — СТРОГО ЗАПРЕЩЁН. Ни одного английского слова, буквы, аббревиатуры. Все названия команд, стадионов, турниров, городов — ТОЛЬКО по-русски. Если в данных есть английское название — транскрибируй по-русски и используй эту транскрипцию до конца превью (и в следующих генерациях по этому же матчу). Примеры транскрипции: Old Trafford → Олд Траффорд, Anfield → Энфилд, Santiago Bernabéu → Сантьяго Бернабеу, Parc des Princes → Парк де Пренс.\n- Запрещённые слова и выражения: поединок · поединка · поединков · поединку · поединкам · поединками · поединке · поединках (ВСЕ формы запрещены) · дуэль · успех · триумф · подспорье · стабильно · нестабильно · нестабильный · переменчивый · уверенная игра · характер игры · в общем зачёте · тренд · крыть/закрыть фору · брать (победить) · показали победы (верно: одержали) · потерпели ничью / потерпели ничьи (верно: сыграли вничью / дважды сыграли вничью) · одержала ничью / одержала ничьи / одержал ничью / одержал ничьи (ничья не одерживается) · одержала поражение / одержала поражения / одержал поражение / одержал поражения (поражение не одерживается — верно: потерпела поражение) · превышать / превышает / превысить (и все производные) · отметка (как в «тотал превысил отметку») · аргумент · фактор · класс команды · выше порога · устойчивый\n- Менять структуру или порядок разделов\n- Писать про null-значения\n- Добавлять что-то от себя\n- Делать переносы строк внутри раздела\n- Начинать предложение после маркера списка (•) со строчной буквы. ВСЕГДА: предложение после «•» начинается с ЗАГЛАВНОЙ буквы\n- Повторять одно и то же слово (или однокоренные слова) дважды в одном предложении. Перефразируй чтобы избежать повтора\n- Использовать эмодзи или специальные символы в тексте\n- Самоисправляться прямо в тексте («извини», «то есть», «вернее», «точнее» и любые подобные оговорки). Если допустил ошибку — просто напиши правильно, без пометок\n- Игнорировать примеры правок редактора. ВАЖНО: если в данных есть блок «ПРИМЕРЫ ПРАВОК РЕДАКТОРА» — это реальные правки человека к предыдущим генерациям. Учитывай их стиль, формулировки и предпочтения как приоритетные инструкции в текущей генерации\n- Использовать слово «поединок» или «поединках»\n- Упоминать имя тренера более одного раза за всю генерацию. После первого упоминания — только название команды («Крузейру», «хозяева», «гости»). Это правило абсолютное.\n\n═══ ШАБЛОН (строго соблюдать) ═══\n\nВводный абзац (одним блоком без переносов): «В [round]-м туре [tournament] «[home]» примет «[away]» на стадионе «[stadium]». Матч пройдёт [date], стартовый свисток прозвучит в [time] по московскому времени. В этом материале рассмотрим котировки на игру, которые предлагают букмекеры.»\nЕсли round=null → «В матче [tournament]...» (не придумывай тур, финал, стадию)\nЕсли tournament=«товарищеском матче» → «В товарищеском матче [home] примет [away] на стадионе «[stadium]»...» (НЕ «В матче товарищеского матча»).\nЧЕМПИОНАТ МИРА (ЧМ) — специальные правила вводного абзаца:\nЕсли tournament содержит «ЧМ» или «чемпионат мира» — используй «ЧМ-[год]» и никогда НЕ пиши «примет» (у сборных нет домашней арены как у клубов). Вместо «примет» — «сыграет против».\nГрупповой этап: «В [N]-м туре группового этапа ЧМ-[год] сборная [home] сыграет против сборной [away] на стадионе «[stadium]». Матч пройдёт [date]...»\nПримеры тура: 1-й тур, 2-й тур, 3-м туре → форма согласуется: «В 1-м туре», «В 2-м туре», «В 3-м туре».\nСтадия плей-офф:\n  1/16 финала: «В 1/16 финала ЧМ-[год] сборная [home] сыграет против сборной [away]...»\n  1/8 финала: «В 1/8 финала ЧМ-[год]...»\n  1/4 финала: «В 1/4 финала ЧМ-[год]...»\n  Полуфинал: «В полуфинале ЧМ-[год]...»\n  Финал: «В финале ЧМ-[год]...»\nВажно: [tournament] уже содержит правильное название в родительном падеже (например «чемпионате Грузии», «чемпионате России», «Лиге 1», «Серии А»). Используй его как есть — «В [round]-м туре [tournament]».\nСБОРНЫЕ (названия стран): Нидерланды, Франция, Испания, Германия, Бразилия и т.д. — пишутся БЕЗ кавычек везде в тексте. Клубные команды — в «кавычках».\n\n### Команды\n[ТОЛЬКО если home_section или away_section не null]\n[ВЕСЬ раздел — ОДИН ЕДИНЫЙ АБЗАЦ без каких-либо переносов строк (Enter). Все предложения идут подряд через пробел.]\\nЗАПРЕЩЕНО в разделе Команды: упоминание тотала в любом виде («тотал больше/меньше», «пробили тотал», «обе команды забили» в контексте статистики тоталов) — это идёт только в раздел Тотал. Прогнозы и выводы о ставках в разделе Команды запрещены.\n\nПоследовательность предложений внутри абзаца:\n\n1. Про хозяев — место и очки. Вариации для 1-го места: «расположился на вершине таблицы с [points] очками» / «располагается на 1-й строчке в таблице с [points] очками» / «занимает первое место в таблице с [points] очками». Для остальных мест: «занимает [pos]-е место в таблице с [points] очками» / «расположился на [pos]-й строчке в таблице с [points] очками» / «занимает [pos]-ю строчку в таблице с [points] очками». Если pos/points null — пропусти.\n\n2. Итог последних 5 матчей хозяев — числа прописью до 9. ПРАВИЛО: упоминай только то, чего больше нуля. Если поражений нет — не пиши про них. ПОРЯДОК: ОБЯЗАТЕЛЬНО сначала посчитай W/L/D в last5, потом расставь по убыванию количества — от большего к меньшему. Пример: W=1, L=2, D=2 → сначала поражения и ничьи (по 2), потом победа (1): «потерпели два поражения, дважды сыграли вничью и одержали одну победу». Пример: W=3, L=1, D=1 → «три победы, одно поражение и одна ничья». При равном количестве порядок: поражения → ничьи → победы. Примеры: «три победы и дважды сыграла вничью» / «три поражения и дважды сыграла вничью» / «две победы, два поражения и одна ничья». ЗАПРЕЩЕНО называть конкретных соперников и счета матчей. ИСКЛЮЧЕНИЕ — если все 5 одинаковые И streak.count>5: используй streak.count («на серии из шести побед» / «одержала шесть побед кряду» — вариативно). Если все 5 одинаковые и streak.count=5 — пиши только «одержала пять побед» БЕЗ слова «подряд» (слово «подряд» в предложениях «В последних пяти матчах...» ЗАПРЕЩЕНО). Перейди к стрику только если last5 разнородные.\n\n3. Стрик хозяев [ТОЛЬКО если home_section.streak не null, streak.count≥3]: «[home] выиграл [N] встреч кряду» / «В последних [N] матчах [home] не пропускал» / «Команда [coach] не знала поражений в [N] встречах подряд» и т.д. Если streak.count=5 и все 5 матчей одинаковые — ищи можно ли удлинить серию до 6-7-8 (но данных нет — не придумывай). ТОЛЬКО если coach на русском языке (кириллица) — используй «команда [coach]» / «банда [coach]» / «игроки [coach]». Если имя тренера содержит латинские буквы — ЗАПРЕЩЕНО упоминать вообще, используй только название команды или роль. ВАЖНО: имя тренера упоминается максимум ОДИН РАЗ за всю генерацию. После первого упоминания — только название команды или роль.\n\n4. Про гостей — то же самое: место/очки (вариации), итог 5 матчей с тем же правилом ПОРЯДКА по убыванию (W/L/D считаем, расставляем от большего к меньшему), стрик (те же правила что в п.3 — запрет счётов матчей, запрет тренеров с латинскими именами). Если три и более ничьих подряд — упомяни их со счётом: «Три последних матча «[away]» завершились вничью — [счёт1], [счёт2] и [счёт3]. До этого...»\n\n5. H2H [ТОЛЬКО если h2h_section не null]:\n- Если h2h_section.dominant_team не null (dominant_streak≥3): «В последних очных встречах сильнее выглядел «[dominant_team]» — [dominant_streak] победы подряд.» (вариативно, dominant_streak числом прописью)\n- Иначе: сначала опиши расклад по last5 (home_wins/away_wins/draws/of) — называй только то что есть. Если у одной команды 0 побед — не пиши «у «Гагры» — ноль», а скажи иначе: «у «Торпедо» четыре победы, ещё одна встреча завершилась вничью» или «все пять побед — за «Торпедо»». Если ничья одна (draws=1) — обязательно укажи её счёт: «одна встреча завершилась вничью — 1:1». Проверь: home_wins + away_wins + draws = of. Числа прописью до 9. Ноль никогда не упоминаем.\n- Если h2h_section.h2h_trends не null — после описания расклада добавь одно предложение о найденном тренде из расширенного окна. ТОЛЬКО тренды о победах команд, ничьих и BTS (обе забивают) — тренды по тоталу (over/under) в разделе Команды НЕ упоминать. Тип streak: «[label] в [streak] последних очных матчах подряд». Тип pct: «[label] — в [n] из [of] последних очных встреч». Примеры: «Обе команды забивали в семи последних очных матчах подряд.» / ««[home]» побеждал в семи из десяти последних очных встреч.» Используй только первый подходящий тренд из h2h_trends. Если тренд дублирует уже сказанное про расклад — пропусти.\n- ВАЖНО: вместо «успех» всегда пиши «победа».\n- Нулевую ничью называй «нулевая ничья», остальные — просто счётом.\n\n### Трёхисходка и двойной шанс\n[Весь раздел одним абзацем] [Фаворит или нет явного по правилу]. На победу «[home]» дают [p1], ничья идёт по [px], победа «[away]» предлагается по [p2]. Коэффициент на то, что «[home]» не проиграет — [p1x], аналогичный вариант для «[away]» — [px2]. Победа одной из команд — вариант «12» — предлагается с котировкой [p12].\n\n### Тотал\n[Весь раздел одним абзацем] Основным тоталом матча букмекеры выставили [total_main] гола — с коэффициентом [total_main_over] на больше и [total_main_under] меньше. [ТОЛЬКО если h2h_last5_total не null И h2h_last5_total.total содержит запятую (2,5 / 3,5) — добавь одно предложение. Если тотал целое число (2, 3) — пропусти. Правило:\nЕсли streak=of (все матчи — одна серия): используй streak и streak_over для формулировки:\n- streak_over=true: варьируй: «тотал [total] был пробит в каждом из [streak] последних очных матчей» / «команды пробили его в [streak] последних очных встречах» / «он был пробит в [streak] последних личных встречах между этими командами»\n- streak_over=false: «тотал [total] не был пробит ни в одном из [streak] последних очных матчей» / «команды не пробили его ни разу за последние [streak] очных встречи»\nЕсли streak<of (смешанные результаты): используй over/of для красивой фразы — КАТЕГОРИЧЕСКИ НЕ упоминай «подряд» для смешанных результатов. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать «в X из Y встреч» — только через «раз/раза». Три режима в зависимости от over и of:\nРЕЖИМ А — streak=of (все матчи, серия подряд): «команды пробили тотал [X] в каждой из [of] последних встреч» / «он был пробит в каждом из [of] последних очных матчей».\nРЕЖИМ Б — over < of/2 (чаще НЕ пробивали): добавляй «лишь» / «всего» / «лишь однажды». Формулировки: 0 — «не пробили его ни разу»; 1 — «пробили его лишь однажды» / «лишь один раз»; 2 — «пробили его лишь дважды» / «всего два раза»; 3 — «пробили его лишь трижды» / «всего три раза»; и т.д. с «лишь» или «всего».\nРЕЖИМ В — over > of/2, но streak<of (чаще пробивали): без «лишь»/«всего». Формулировки: 4 — «четыре раза»; 5 — «пять раз»; 6 — «шесть раз»; и т.д. ИСКЛЮЧЕНИЕ — если over=of-1 (пропустили ровно один): добавляй «аж»: «пробили тотал аж семь раз» (из 8), «аж девять раз» (из 10). Пример: over=3, of=8 (режим Б) → «За восемь последних очных встреч команды пробили тотал 2,5 лишь три раза.» Пример: over=7, of=8 (режим В, of-1) → «За восемь очных встреч команды пробили тотал 2,5 аж семь раз.» Начинай предложение вариативно: «В [of] последних очных встречах...» / «За [of] очных матчей...» / «В личных встречах этих команд...»] На больше [total_next] можно поставить за [total_next_over]. [ТОЛЬКО если total_highest отличается от total_main]: Самый высокий тотал по линии — [total_highest] за [total_highest_over] на «верх». [ТОЛЬКО если home_total_streak не null: добавь одно предложение про хозяев — например «В последних [streak] матчах «[home]» тотал [total] не был пробит ни разу» или ««[home]» не пробивал отметку в [total целое+1] гола в [streak] встречах подряд». Аналогично для away_total_streak.] [Если it1_main не null]: Индивидуальный тотал «[home]» [it1_main] — [it1_main_over] на больше ([it1_main_under] — меньше). [Если it2_main не null]: Индивидуальный тотал «[away]» [it2_main] — [it2_main_over] на больше ([it2_main_under] — меньше). Кэф на то, что обе команды забьют в матче — [bts]. **Прогноз по тоталу:** [1-2 предложения: конкретный факт → почему → ставка. Финальная фраза жирным: **Прогноз по тоталу: [ставка] с коэффициентом [X,XX]**. Ставка только из: total_main_over, total_main_under, total_next_over, it1_main_over, it1_main_under, it2_main_over, it2_main_under. Коэф ≥1,40 обязателен — если нет подходящего, весь блок пропустить. ЗАПРЕЩЕНО: писать «Прогноз по тоталу:» более одного раза.]\n\n### Форы\n[Весь раздел одним абзацем] Основной форой по линии идёт ([main_h1_handicap]) — с кэфами [main_h1_odd] на «[home]» и [main_h2_odd] на «[away]». [Если h1_neg15 не null]: На победу [используй название команды или «хозяева» — тренера здесь НЕ упоминай, он уже был в разделе Команды] с форой (-1,5) можно поставить за [h1_neg15], обратный коэффициент (+1,5) на [«гостей» или ««[away]»»] — [h2_pos15]. [ТОЛЬКО если extreme_h_handicap отличается от main_h1_handicap]: Крайняя фора в линии — «[если extreme_h_is_home=true то home, иначе away]» ([extreme_h_handicap]) с коэффициентом [extreme_h_odd].\n\n### Угловые\n(Этот раздел ТОЛЬКО если corners_main не null. Иначе пропусти полностью — не пиши заголовок.)\n[Весь раздел одним абзацем] Тотал по угловым — [corners_main] угловых за [corners_main_over] на больше. [ТОЛЬКО если corners_next не null]: [corners_next — это граница тотала (например 9,5). corners_next_over — коэффициент на БОЛЬШЕ (ТБ, минимум 10). corners_next_under — коэффициент на МЕНЬШЕ (ТМ, максимум 9). Формулировка: «Коэффициент на то, что в матче будет минимум [corners_next целое+1] угловых, букмекеры дают [corners_next_over] (максимум [corners_next целое] — [corners_next_under]).» НЕ добавляй слова «на меньше» или «на больше» после коэффициентов в угловых — просто число. Пример: corners_next=9,5, corners_next_over=1,85, corners_next_under=2,47 → «минимум 10 угловых, букмекеры дают 1,85 (максимум 9 — 2,47)». ВАЖНО: corners_next_over = ТБ (больше), corners_next_under = ТМ (меньше). Не путай.]\n\n### Тренды\\n[Этот раздел ТОЛЬКО если в сообщении есть блок ТРЕНДЫ. Иначе пропусти полностью — не пиши заголовок.]\\nСкопируй содержимое блока ТРЕНДЫ дословно. Каждая строка с новой строки. НИЧЕГО не меняй, не добавляй, не объединяй в одну строку.\\n\\n### Прогноз\\n[Прогноз ВСЕГДА присутствует. 2-3 предложения. Логическая цепочка: конкретный факт → вывод → ставка. Финальная строка обязательна (жирным): **Прогноз: [ставка] с коэффициентом [X,XX]**]\\n\\nДОПУСТИМЫЕ РЫНКИ для прогноза (все берутся из oddsLine):\\np1 (победа хозяев), px (ничья), p2 (победа гостей), p1x (хозяева не проиграют), px2 (гости не проиграют), p12 (победа одной из команд), total_main_over (ТБ основной), total_main_under (ТМ основной), total_next_over (ТБ следующий), it1_main_over (ИТ хозяев больше), it1_main_under (ИТ хозяев меньше), it2_main_over (ИТ гостей больше), it2_main_under (ИТ гостей меньше), bts (обе забьют), main_h1_odd (основная фора хозяев), main_h2_odd (основная фора гостей), h1_neg15 (фора хозяев -1,5), h2_pos15 (фора гостей +1,5), h1_neg25 (фора хозяев -2,5), h2_pos25 (фора гостей +2,5).\\n\\nВЫБОР СТАВКИ — строго по приоритету:\\n\\nШАГ 1. Если preview_trend не null → используй его (см. ниже). Стоп.\\n\\nШАГ 2. Если preview_trend null → найди наиболее выраженную закономерность в h2h_section, home_section, away_section и подбери ставку из допустимых рынков с коэфом ≥1,40. Если нашёл → используй. Стоп.\\n\\nШАГ 3. Если ни одной ставки с коэфом ≥1,40 нет → ищи в тех же рынках коэф ≥1,30. Если нашёл → используй. Стоп.\\n\\nШАГ 4. Только если шаги 2 и 3 не дали результата → возьми любую ставку из допустимых рынков с коэфом от 1,75. Это крайнее исключение.\\\\n\\\\nАРГУМЕНТАЦИЯ — строго соответствует типу ставки:\\\\n— Победа команды: аргументы из побед/поражений обеих команд (last5, стрики) + разница в таблице. Тоталы не упоминать.\\\\n— Тотал (ТБ/ТМ): аргументы из серий по тоталу обеих команд. Победы/поражения не упоминать.\\\\n— ИТ команды: два факта — эта команда забивает (голевые серии) + соперник пропускает (серии по пропущенным).\\\\n— Двойной шанс/фора: разница уровней + форма.\\\\nМинимум 2 конкретных факта из данных → вывод → ставка.\\\\n\\\\nЗАПРЕЩЕНО: упоминать «шаг», «порог», «минимальный коэффициент», «коэф от», объяснять логику выбора ставки — только сам прогноз и аргументы из данных.\\n\\nЕсли preview_trend.type=«h2h_streak»:\\n- Расскажи что событие «[label]» случалось в каждом из [streak] последних очных матчей.\\n- Поясни почему может повториться.\\n- Финальная строка (жирным): **Прогноз: [label] с коэффициентом [odd]**\\n\\nЕсли preview_trend.type=«both_pct»:\\n- НЕ упоминай проценты — только стрики.\\n- Если home_streak≥4 → «[home] забивал/отличался в [home_streak] матчах подряд»; иначе → «[home] забивал в [home_n] из [home_n] последних матчей» (вариативно).\\n- То же для away_streak/away_n.\\n- Финальная строка (жирным): **Прогноз: [label] с коэффициентом [odd]**\\n\\nЗАПРЕЩЕНО в прогнозе: проценты (90%, 100%), «тренд», «серия», «статистика показывает», «подтверждений», «условие выполнено», имена тренеров на латинице — если тренер не имеет русского имени, используй «хозяева»/«гости»/название команды. Додумывать характеристики («лидер лиги», «аутсайдер», «в кризисе» и т.п.) если это прямо не следует из данных.';
+
+
+
+var FS='РОЛЬ: Ты анализируешь футбольные матчи и ищешь ставки. Молодая аудитория — просто, живо, без пафоса.\\n\\nГЛАВНОЕ ПРАВИЛО:\\nВ данных есть раздел «НАЙДЕННЫЕ СЕРИИ» — используй ТОЛЬКО эти цифры.\\nНЕ считай сам, НЕ додумывай, НЕ используй другие данные для формулировки серий.\\nКаждая цифра в тексте = из раздела «НАЙДЕННЫЕ СЕРИИ».\\nГаллюцинация = брак. Нет серии в данных = не пишешь.\\n\\nКОЭФФИЦИЕНТЫ:\\n- В данных есть раздел _odds_line — это букмекерская линия матча. Используй её для подбора коэффициента к прогнозу.\\n- Серия «коэф от 1,56» → используй если коэффициент на это событие ≥1,56 (ищи в _odds_line: p1, p2, total_main_over, total_main_under, bts и т.д.)\\n- Серия «коэф от 1,37» → используй если коэффициент ≥1,37 (только для серий 100% на 10+)\\n- Если подходящего коэффициента нет в _odds_line → не делай прогноз на эту серию\\n\\nДВА ПОДТВЕРЖДЕНИЯ:\\nНужно минимум две серии из данных ведущих к одной ставке.\\nЕсли меньше двух → пиши только: Устойчивые тренды отсутствуют\\n\\n═══ ЗАПРЕЩЕНО ═══\\n- Воспроизводить данные из «НАЙДЕННЫЕ СЕРИИ» дословно в тексте (цифры — да, формулировки типа «7 из 8 (88%)» — нет, они только для внутреннего анализа)\\n- Писать «серии ведут к ставке», «подтверждений», «тренды» — просто строй логику без мета-комментариев\\n- Упоминать заголовки разделов данных (ЛИЧНЫЕ ВСТРЕЧИ, НАЙДЕННЫЕ СЕРИИ и т.д.) в тексте\\n- Использовать технический язык системы: «удовлетворяет условию», «порог», «коэф от», «≥1,56», «≥1,37» — это внутренние параметры, в тексте их быть не должно\\n- Писать «все серии ведут», «оба условия выполнены», «двойное подтверждение» и подобные мета-фразы\\nподопечные · поединок · дуэль · успех · триумф · подспорье · стабильно · нестабильно · переменчивый · уверенная игра · характер игры · в общем зачёте · гость (ед.ч.) · хозяин (ед.ч.) · тренд · крыть/закрыть фору · брать (победить) · аргумент · фактор · класс команды · «выше порога» · «устойчивый»\\nАнглийский язык · источник данных в тексте · внутренние рассуждения\\nОценка без цифры · перечисление результатов подряд · форма (В-В-Д)\\nФакты не ведущие к итоговой ставке · додумывание условий · информация о противнике если она не подтверждает ставку · очки/место без связи с прогнозом\\nРазрыв очков менее 20 в первом абзаце\\n\\n═══ ЧИСЛА ═══\\nСчёт цифрами: 2:0 · 1-9 прописью: «две победы» · 10+ цифрами · Коэф: 1,63 · Форы: (-1,5) · Тоталы: тотал меньше 3,5\\n\\n═══ ФОРМАТ ═══\\n\\n# [К1] — [К2]: прогноз и ставка. [Конкретный вывод, до 5 слов]\\n\\nАбзац 1: «В [N]-м туре [Турнир] «[К1]» примет «[К2]» на стадионе «[по-русски]». Стартовый свисток прозвучит в ЧЧ:ММ по московскому времени.»\\nЕсли round=null → «В матче [Турнир] «[К1]» примет «[К2]»...» (не придумывай тур, финал, стадию)\\n\\nАбзац 2-3: ТОЛЬКО факты напрямую ведущие к итоговой ставке. Строй логическую цепочку: каждый факт → почему это означает → почему ставка зайдёт. Место/очки — только если прямо подтверждают прогноз. Ни одного предложения не по теме.\\n\\n### Личные встречи — только если серия из H2H 70%+ на 8+ матчах\\n\\n**Прогноз:** [ставка] с коэффициентом X,XX\\n(жирное, без точки)\\n\\nКОМАНДЫ: все названия в «кавычках», кроме заголовка. Капслок только для устоявшихся аббревиатур (МЮ, ПСЖ, ЦСКА, СКА) — без кавычек. Полные названия типа «Ницца», «Реал», «Бавария» — всегда в «» и без капслока.\\nСТАДИОН: только по-русски. Если название стадиона содержит слово «стадион» — используй как предложный оборот без дополнительного «на стадионе»: «Муниципальный стадион Флориды» → «на Муниципальном стадионе Флориды». Если не содержит — «на стадионе «Название»». Длина: 200-350 слов.';
+
+// ── Tab switching ────────────────────────────────────────────────────────
+function toggleFav(id){
+  var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+  if(favs[id]) delete favs[id];
+  else favs[id]=true;
+  localStorage.setItem('mp_favs',JSON.stringify(favs));
+  var btn=document.getElementById('fav-'+id);
+  if(btn) btn.style.color=favs[id]?'#d97706':'#d1d5db';
+  updateFavCount();
+  if(document.getElementById('navFav').classList.contains('active')) renderFavTab();
+}
+
+function updateFavCount(){
+  var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+  var n=Object.keys(favs).length;
+  var sp=document.getElementById('favCount');
+  if(sp){sp.textContent=n;sp.style.display=n?'inline':'none';}
+}
+
+function renderFavTab(){
+  var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+  var ids=Object.keys(favs).map(Number);
+  var fl=document.getElementById('favList');
+  if(!fl) return;
+  if(!ids.length){fl.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Нет избранных матчей</div>';return;}
+  var favMatches=ids.map(function(id){return M[id];}).filter(Boolean);
+  if(!favMatches.length){fl.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Загрузите матчи чтобы увидеть избранное</div>';return;}
+  var h='';
+  favMatches.forEach(function(m){
+    var id=m.id||m.match_id,dt=fdt(m.date_time);
+    h+='<div class="mi" onclick="sel('+id+',this);switchTab(\'matches\')" style="background:#fff;border-radius:8px;margin-bottom:8px;border:1px solid #e5e5e0">'+
+       '<div style="display:flex;align-items:flex-start;gap:4px">'+
+       '<div style="flex:1;min-width:0"><div class="mi-t">'+esc(tn(m.home))+' — '+esc(tn(m.away))+'</div><div class="mi-s">'+dt[0]+' · '+dt[1]+' МСК</div></div>'+
+       '<button onclick="event.stopPropagation();toggleFav('+id+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#d97706;padding:2px;line-height:1;flex-shrink:0">★</button>'+
+       '</div></div>';
+  });
+  fl.innerHTML=h;
+}
+
+function switchTab(tab) {
+  var matchesTab = document.getElementById('navMatches');
+  var pubsTabNav = document.getElementById('navPubs');
+  var favTabNav = document.getElementById('navFav');
+  var promptTabNav = document.getElementById('navPrompt');
+  var wrap = document.querySelector('.wrap');
+  var pubsWrap = document.getElementById('pubsTab');
+  var favWrap = document.getElementById('favTab');
+  var promptWrap = document.getElementById('promptTab');
+
+  [matchesTab,pubsTabNav,favTabNav,promptTabNav].forEach(function(t){if(t)t.classList.remove('active');});
+  wrap.style.display='none';
+  pubsWrap.style.display='none';
+  if(favWrap) favWrap.style.display='none';
+  if(promptWrap) promptWrap.style.display='none';
+
+  if(tab==='matches'){
+    matchesTab.classList.add('active');
+    wrap.style.display='grid';
+  } else if(tab==='fav'){
+    if(favTabNav) favTabNav.classList.add('active');
+    if(favWrap){favWrap.style.display='block';renderFavTab();}
+  } else if(tab==='prompt'){
+    if(promptTabNav) promptTabNav.classList.add('active');
+    if(promptWrap){promptWrap.style.display='block';loadPromptExtra();}
+  } else {
+    pubsTabNav.classList.add('active');
+    pubsWrap.style.display='block';
+    renderPubs();
+  }
+}
+
+function loadPromptExtra(){
+  var ta=document.getElementById('promptExtra');
+  if(!ta) return;
+  stLoad().then(function(st){ ta.value=st.prompt_extra||''; });
+}
+
+function savePromptExtra(){
+  var ta=document.getElementById('promptExtra');
+  var status=document.getElementById('promptSaveStatus');
+  if(!ta) return;
+  stLoad().then(function(st){
+    st.prompt_extra=ta.value.trim();
+    return stSave(st);
+  }).then(function(){
+    if(status){status.textContent='Сохранено ✓';setTimeout(function(){status.textContent='';},2000);}
+  }).catch(function(){
+    if(status){status.textContent='Ошибка сохранения';setTimeout(function(){status.textContent='';},2000);}
+  });
+}
+
+function updatePubsCount() {
+  var pubs = [];
+  try { pubs = JSON.parse(localStorage.getItem('mp_pubs') || '[]'); } catch(e) {}
+  var badge = document.getElementById('pubsCount');
+  if (badge) {
+    if (pubs.length > 0) { badge.textContent = pubs.length; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+  }
+}
+
+function renderPubs() {
+  var pubs = [];
+  try { pubs = JSON.parse(localStorage.getItem('mp_pubs') || '[]'); } catch(e) {}
+  var wrap = document.getElementById('pubsWrap');
+  if (!pubs.length) {
+    wrap.innerHTML = '<div class="pubs-empty">📭 Нет сохранённых публикаций</div>';
+    return;
+  }
+  var h = '';
+  pubs.forEach(function(p, i) {
+    var d = new Date(p.ts);
+    var dateStr = d.getDate()+' '+['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'][d.getMonth()]+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    var preview = (p.text||'').slice(0,400);
+    h += '<div class="pub-card" id="pub-'+i+'">'+
+      '<div class="pub-card-head">'+
+        '<span class="pub-badge '+p.type+'">'+(p.type==='p'?'Превью':'Прогноз')+'</span>'+
+        '<span class="pub-match">'+esc(p.match||'')+'</span>'+
+        '<span class="pub-date">'+dateStr+'</span>'+
+        '<div class="pub-actions">'+
+          '<button class="pub-btn" onclick="copyPub('+i+', this)">⎘ Копировать</button>'+
+          '<button class="pub-btn del" onclick="deletePub('+i+')">✕ Удалить</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="pub-text" id="pub-text-'+i+'" onclick="togglePubText('+i+')" title="Нажмите чтобы развернуть">'+
+        esc(preview)+(p.text&&p.text.length>400?'\n\n[нажмите чтобы развернуть...]':'')+
+      '</div>'+
+    '</div>';
+  });
+  wrap.innerHTML = h;
+}
+
+function togglePubText(i) {
+  var el = document.getElementById('pub-text-'+i);
+  if (!el) return;
+  var pubs = [];
+  try { pubs = JSON.parse(localStorage.getItem('mp_pubs') || '[]'); } catch(e) {}
+  var p = pubs[i];
+  if (!p) return;
+  if (el.classList.contains('pub-text-expanded')) {
+    el.classList.remove('pub-text-expanded');
+    el.textContent = (p.text||'').slice(0,400)+(p.text&&p.text.length>400?'\n\n[нажмите чтобы развернуть...]':'');
+  } else {
+    el.classList.add('pub-text-expanded');
+    el.textContent = p.text||'';
+  }
+}
+
+async function copyPub(i, btn) {
+  var pubs = [];
+  try { pubs = JSON.parse(localStorage.getItem('mp_pubs') || '[]'); } catch(e) {}
+  var p = pubs[i];
+  if (!p) return;
+  try {
+    await navigator.clipboard.writeText(p.text||'');
+    btn.textContent = '✓ Скопировано'; btn.classList.add('ok');
+    setTimeout(function(){ btn.textContent='⎘ Копировать'; btn.classList.remove('ok'); }, 2000);
+  } catch(e) { alert('Выделите текст вручную'); }
+}
+
+function deletePub(i) {
+  var pubs = [];
+  try { pubs = JSON.parse(localStorage.getItem('mp_pubs') || '[]'); } catch(e) {}
+  pubs.splice(i, 1);
+  try { localStorage.setItem('mp_pubs', JSON.stringify(pubs)); } catch(e) {}
+  updatePubsCount();
+  renderPubs();
+}
+
+// Init count on load
+document.addEventListener('DOMContentLoaded', function(){ updatePubsCount(); updateFavCount(); });
+
+// ── Publish modal ────────────────────────────────────────────────────────
+var _pubType = null;
+
+function openPublishModal(type) {
+  _pubType = type;
+  var el = document.getElementById('rbedit');
+  var txt = el ? (el.innerText || el.textContent || '') : (type==='p'?pt:ft);
+  var preview = txt ? txt.slice(0,60).replace(/\n/g,' ')+'...' : '(пустой текст)';
+  document.getElementById('pubModalSub').textContent = '"' + preview + '"';
+  document.getElementById('pubModalInner').innerHTML =
+    '<div class="modal-title">Сохранить для публикации?</div>'+
+    '<div class="modal-sub">' + esc(preview) + '</div>'+
+    '<div class="modal-btns">'+
+    '<button class="modal-no" onclick="closeModal()">Нет</button>'+
+    '<button class="modal-yes" onclick="confirmPublish()">Да, сохранить</button>'+
+    '</div>';
+  document.getElementById('pubModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('pubModal').classList.remove('open');
+  _pubType = null;
+}
+
+function confirmPublish() {
+  var type = _pubType;
+  var el = document.getElementById('rbedit');
+  var txt = el ? (el.innerText || el.textContent || '') : (type==='p'?pt:ft);
+  if (!txt) { closeModal(); return; }
+
+  // Save to localStorage publications list
+  var pubs = [];
+  try { pubs = JSON.parse(localStorage.getItem('mp_pubs') || '[]'); } catch(e) {}
+  var m = sid && M[sid];
+  pubs.unshift({
+    type: type,
+    match: m ? tn(m.home) + ' — ' + tn(m.away) : '?',
+    text: txt,
+    ts: Date.now()
+  });
+  if (pubs.length > 50) pubs = pubs.slice(0, 50);
+  try { localStorage.setItem('mp_pubs', JSON.stringify(pubs)); } catch(e) {}
+
+  // Show success state
+  document.getElementById('pubModalInner').innerHTML =
+    '<div class="modal-done">'+
+    '<div class="modal-done-icon">✅</div>'+
+    '<div class="modal-done-text">Сохранено для публикации</div>'+
+    '</div>';
+  updatePubsCount();
+  setTimeout(function() { closeModal(); }, 1400);
+}
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+  if (e.target.id === 'pubModal') closeModal();
+});
+
+var CS='Фактчекер. Проверь факты превью на соответствие данным. Только реальные ошибки.\nОтвет — JSON без markdown: {"score":10,"verdict":"ок","data_issues":[],"summary":"Текст корректен."}';
+</script>
+<!-- Publish modal -->
+<div class="modal-overlay" id="pubModal">
+  <div class="modal" id="pubModalInner">
+    <div class="modal-title">Сохранить для публикации?</div>
+    <div class="modal-sub" id="pubModalSub">Текст будет сохранён в список публикаций.</div>
+    <div class="modal-btns">
+      <button class="modal-no" onclick="closeModal()">Нет</button>
+      <button class="modal-yes" onclick="confirmPublish()">Да, сохранить</button>
+    </div>
+  </div>
+</div>
+<!-- Odds debug modal -->
+<div class="modal-overlay" id="oddsDebugModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div style="background:#fff;border-radius:14px;width:90vw;max-width:860px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e5e0;display:flex;align-items:center;gap:10px">
+      <span style="font-size:15px;font-weight:700;color:#1a1a1a">🔍 Odds JSON — сырой ответ SmartTables</span>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('oddsDebugContent').textContent).then(function(){var b=document.getElementById('oddsCopyBtn');b.textContent='✓ Скопировано';setTimeout(function(){b.textContent='⎘ Копировать';},2000)})" id="oddsCopyBtn" style="margin-left:auto;background:#fff;border:1px solid #e5e5e0;color:#6b7280;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">⎘ Копировать</button>
+      <button onclick="document.getElementById('oddsDebugModal').classList.remove('open')" style="background:#f5f5f0;border:1px solid #e5e5e0;color:#6b7280;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">✕ Закрыть</button>
+    </div>
+    <pre id="oddsDebugContent" style="flex:1;overflow:auto;padding:16px 20px;font-size:12px;line-height:1.6;color:#374151;margin:0;white-space:pre-wrap;word-break:break-all"></pre>
+  </div>
+</div>
+</body>
+</html>
