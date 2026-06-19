@@ -103,7 +103,10 @@ http.createServer((req, res) => {
   if (p === '/' || p === '/index.html') {
     if (!requireAuth()) return;
     try {
-      const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+      let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+      // SERVICE_MODE задаётся переменной окружения на Railway: 'preview', 'forecast' или не задана (оба)
+      const modeScript = '<script>window.SERVICE_MODE=' + JSON.stringify(process.env.SERVICE_MODE || 'both') + ';</script>\n';
+      html = html.replace('<script>', modeScript + '<script>');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } catch(e) { res.writeHead(404); res.end('index.html not found'); }
