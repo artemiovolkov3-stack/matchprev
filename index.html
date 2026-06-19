@@ -180,6 +180,7 @@ body { background: #f5f5f0; color: #1a1a1a; font-family: 'Inter', -apple-system,
 <body>
 <div class="hdr">
   <div class="logo">Match<span>Prev</span></div>
+  <span id="modeBadge" style="font-size:11px;color:#9ca3af;margin-left:6px;font-weight:600;letter-spacing:.02em"></span>
   <span id="st">Нажмите «Загрузить матчи»</span>
 </div>
 <div class="nav">
@@ -223,6 +224,19 @@ var M={}, sid=null, enr=null, pt=null, ft=null, cr=null;
 var _lastShown = 'p';
 var _pendingRestore = null; // данные для восстановления после загрузки матчей
 // pt/ft = null означает "не генерировалось", '' означает "очищено — пустое поле"
+
+// ── Режим сервиса (превью / прогноз / оба) — бейдж в шапке и заголовок вкладки
+(function(){
+  var mode=window.SERVICE_MODE||'both';
+  var label=mode==='preview'?'Превью':mode==='forecast'?'Прогноз':'';
+  var badge=document.getElementById('modeBadge');
+  if(badge&&label) badge.textContent=label;
+  if(label) document.title='MatchPrev — '+label;
+  if(mode==='preview'){
+    var fl=document.getElementById('favList');
+    if(fl) fl.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Добавьте турниры в избранное с помощью звёздочки ★ рядом с названием турнира в списке матчей</div>';
+  }
+})();
 
 // ── Автосохранение текстов ────────────────────────────────────────────────
 function saveTexts() {
@@ -353,7 +367,11 @@ function isFuture(m){var s=m.status||'';return s!=='is-over'&&s!=='canceled'&&s!
 // ── Utils ─────────────────────────────────────────────────────────────────
 function ss(s){document.getElementById('st').textContent=s;}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function tn(t){return t&&(t.name_ru||t.name_en||t.name)||'?';}
+// Сокращённые официальные названия команд (заменяют полное имя везде, где используется tn())
+var TEAM_NAME_SHORT = {
+  'СФК Штурми': 'Штурми',
+};
+function tn(t){var n=t&&(t.name_ru||t.name_en||t.name)||'?';return TEAM_NAME_SHORT[n]||n;}
 function fdt(dt){
   if(!dt)return['—','—'];
   var d=new Date(dt),m=new Date(d.getTime()+3*3600*1000);
@@ -369,6 +387,109 @@ async function cl(sys,usr,mx){
   var d=await r.json();
   if(d.error)throw new Error(d.error.message||JSON.stringify(d.error));
   return(d.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+}
+
+// ── Авто-валидация сгенерированного текста ──────────────────────────────
+var FORBIDDEN_PHRASES=['поединок','поединка','поединков','поединку','поединкам','поединками','поединке','поединках',
+  'дуэль','триумф','подспорье',
+  'нестабильно','нестабильный','переменчивый','стабильно','стабильный','стабильная','стабильное','стабильные','стабильную','стабильным','стабильной','стабильности',
+  'уверенная игра','характер игры','в общем зачёте','крыть фору','закрыть фору',
+  'показали победы','потерпели ничью','потерпели ничьи',
+  'одержала ничью','одержала ничьи','одержал ничью','одержал ничьи','одержали ничью','одержали ничьи',
+  'одержала поражение','одержала поражения','одержал поражение','одержал поражения','одержали поражение','одержали поражения',
+  'превышать','превышает','превысить','превысила','превысил','превысили','отметку',
+  'аргумент','фактор','класс команды','выше порога','устойчивый',
+  'пятёрка','пятерка','в своей пятёрке',
+  'оборонительный рейтинг','форовая линии','умеренный','умеренно',
+  'сдержанный','сдержанного','сдержанной','сдержанному','сдержанным','сдержанную','сдержанные','сдержанных','сдержанно',
+  'набрать','набрали','набрал','набрала',
+  'противостояние','противостояния','противостоянию','противостоянием','противостоянии','противостояниях',
+  'в двух из трёх','в двух из последних трёх',
+  'серию подряд','серией подряд','серии подряд',
+  'извини','вернее','точнее'];
+var LEAK_PHRASES=['не предусмотрен линией','не предусмотрена линией','недоступен в линии','отсутствует в линии',
+  'система пропускает','если чего-то нет','если чего нет',
+  'модель не сработала','алгоритм не выполнен','тренд отсутствует для заданной','условие не выполнено',
+  'данные не загрузились','недостаточно данных для анализа',
+  'я не нашел','я не нашёл','не нашел тренд','не нашёл тренд','по моему мнению','мне кажется'];
+
+function validateGenText(txt,oddsLine){
+  var v=[];
+  var low=txt.toLowerCase();
+  FORBIDDEN_PHRASES.forEach(function(w){if(low.indexOf(w)>=0)v.push('запрещённое слово/фраза: «'+w+'»');});
+  LEAK_PHRASES.forEach(function(w){if(low.indexOf(w)>=0)v.push('утечка рассуждений: «'+w+'»');});
+  if(/[A-Za-z]{3,}/.test(txt)) v.push('обнаружен текст на латинице');
+  if(/(^|[^a-zа-яё])я([^a-zа-яё]|$)/.test(low)) v.push('обнаружено местоимение «я» (похоже на рассуждения от первого лица)');
+  var re=/(?:Прогноз(?: по тоталу)?):\s*[^\n*]+?с\s+коэффициентом\s+([\d.,]+)/gi, m;
+  while((m=re.exec(txt))){
+    var val=parseFloat(m[1].replace(',','.'));
+    if(!isNaN(val)&&val<1.50) v.push('коэффициент в прогнозе ниже 1,50: '+m[1]);
+  }
+  if((txt.match(/Прогноз по тоталу:/gi)||[]).length>1) v.push('«Прогноз по тоталу:» встречается более одного раза');
+  if(oddsLine){
+    var allowedFields=['p1','px','p2','p1x','px2','p12','total_main_over','total_main_under','total_next_over','total_next_under','it1_main_over','it1_main_under','it2_main_over','it2_main_under','bts','main_h1_odd','main_h2_odd','h1_neg15','h2_pos15','h1_neg25','h2_pos25'];
+    var allowedVals=allowedFields.map(function(f){var x=oddsLine[f];return x!=null?parseFloat(String(x).replace(',','.')):null;}).filter(function(x){return x!=null&&!isNaN(x);});
+    var pm=txt.match(/(?:^|\n)\*?\*?Прогноз:\s*[^\n]+?с\s+коэффициентом\s+([\d.,]+)/i);
+    if(pm&&allowedVals.length){
+      var pv=parseFloat(pm[1].replace(',','.'));
+      var found=allowedVals.some(function(x){return Math.abs(x-pv)<0.02;});
+      if(!found) v.push('коэффициент финального прогноза ('+pm[1]+') не найден в линии данных — возможно, придуман');
+    }
+  }
+  return v;
+}
+
+// ── Режим сервиса (превью-только / прогноз-только / оба) ───────────────
+// Задаётся через переменную окружения SERVICE_MODE на Railway, server.js
+// прокидывает её в window.SERVICE_MODE при отдаче index.html.
+// 'preview' — только превью, 'forecast' — только прогноз, иначе — оба (как раньше).
+function actionPanelHtml(){
+  var mode=window.SERVICE_MODE||'both';
+  var single=(mode==='preview'||mode==='forecast');
+  var h='<div class="btns"'+(single?' style="grid-template-columns:1fr"':'')+'>';
+  if(mode!=='forecast') h+='<button class="bp" id="bp" onclick="gen(\'p\')">📝 Сгенерировать превью</button>';
+  if(mode!=='preview') h+='<button class="bf" id="bf" onclick="gen(\'f\')">🎯 Сгенерировать прогноз</button>';
+  h+='</div>';
+  if(mode!=='preview'){
+    h+='<div style="padding:6px 0 2px"><textarea id="kf" placeholder="📌 Ключевые факты — вписывай данные которые ОБЯЗАТЕЛЬНО попадут в текст. Пример: Эспаньол 18 матчей без побед." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;color:#374151;resize:vertical;min-height:56px;font-family:Inter,sans-serif;background:#fafafa"></textarea></div>';
+  }
+  return h;
+}
+
+// Безопасно ставит disabled — не падает, если кнопки нет в DOM (режим preview/forecast)
+function setBtnDisabled(id,val){
+  var el=document.getElementById(id);
+  if(el) el.disabled=val;
+}
+
+function showFlagged(type,txt,violations){
+  var el=document.getElementById('rb');if(!el)return;
+  var list=violations.map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+  el.innerHTML='<div class="rc">'+
+    '<div class="rh" style="background:#fef2f2"><span class="rl" style="color:#b91c1c">⚠️ Требует внимания</span></div>'+
+    '<div style="padding:14px 16px;color:#7f1d1d;font-size:13px">Автоматическая проверка не пройдена после нескольких попыток генерации. Текст НЕ сохранён и не готов к публикации.<ul style="margin:8px 0 0 18px">'+list+'</ul></div>'+
+    '<div style="padding:0 16px 16px"><button class="rbtn" onclick="regen(\''+type+'\')">↺ Попробовать снова</button></div>'+
+    '<div class="rb" style="white-space:pre-wrap;color:#9ca3af;font-size:12px;padding:0 16px 16px">'+esc(txt)+'</div>'+
+    '</div>';
+}
+
+// ── Сборка сообщения для промта-корректора (FIXP) ───────────────────────
+// Передаёт корректору: исходный текст, постоянные правила/словари, одобренные
+// примеры правок и список найденных нарушений — чтобы он точечно исправил текст.
+function buildFixUserMsg(txt,violations,type){
+  var rulesText='ПОСТОЯННЫЕ ПРАВИЛА (стоп-лист слов и фраз): '+FORBIDDEN_PHRASES.concat(LEAK_PHRASES).join(' · ');
+  var dictKeys=Object.keys(TEAM_NAME_SHORT);
+  var dictText=dictKeys.length?('\n\nСЛОВАРЬ ЗАМЕН НАЗВАНИЙ: '+dictKeys.map(function(k){return '«'+k+'» → «'+TEAM_NAME_SHORT[k]+'»';}).join('; ')):'';
+  var rel=EDITS.filter(function(e){return e.type===type;}).slice(0,5);
+  var examplesText='';
+  if(rel.length){
+    examplesText='\n\nРАНЕЕ ОДОБРЕННЫЕ ПРИМЕРЫ ПРАВОК РЕДАКТОРА:';
+    rel.forEach(function(e,i){
+      examplesText+='\nПравка '+(i+1)+' — было: '+e.orig.slice(0,250)+' / стало: '+e.edit.slice(0,250);
+    });
+  }
+  var violText='НАЙДЕННЫЕ ОШИБКИ В ТЕКУЩЕМ ТЕКСТЕ (исправь именно их):\n'+violations.map(function(v,i){return (i+1)+'. '+v;}).join('\n');
+  return 'ИСХОДНЫЙ ТЕКСТ:\n\n'+txt+'\n\n'+rulesText+dictText+examplesText+'\n\n'+violText+'\n\nИсправь текст согласно правилам выше и верни только исправленный текст целиком.';
 }
 
 // ── Load matches ──────────────────────────────────────────────────────────
@@ -464,10 +585,7 @@ async function load(){
           '<div class="mc-m"><div class="mc-chip">📅 <b>'+dt2[0]+'</b></div><div class="mc-chip">🕐 <b>'+dt2[1]+' МСК</b></div>'+
           (stad2?'<div class="mc-chip">🏟 <b>'+esc(stad2)+'</b></div>':'')+
           (ref2?'<div class="mc-chip">Рефери — <b>'+esc(ref2)+'</b></div>':'')+
-          '</div></div><div class="btns"><button class="bp" id="bp" onclick="gen(\'p\')">📝 Сгенерировать превью</button>'+
-          '<button class="bf" id="bf" onclick="gen(\'f\')">🎯 Сгенерировать прогноз</button></div>'+
-          '<div style="padding:6px 0 2px"><textarea id="kf" placeholder="📌 Ключевые факты — вписывай данные которые ОБЯЗАТЕЛЬНО попадут в текст. Пример: Эспаньол 18 матчей без побед." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;color:#374151;resize:vertical;min-height:56px;font-family:Inter,sans-serif;background:#fafafa"></textarea></div>'+
-          '<div id="rb"></div>';
+          '</div></div>'+actionPanelHtml()+'<div id="rb"></div>';
         if(pt!==null)show('p');else if(ft!==null)show('f');
         if(window._kfSaved){var kfr=document.getElementById('kf');if(kfr)kfr.value=window._kfSaved;}
         ss(tn(m2.home)+' — '+tn(m2.away)+' (восстановлено)');
@@ -627,6 +745,27 @@ function tournamentWithCountry(m){
     if(raw.indexOf('первая лига')>=0||raw.indexOf('first league')>=0) return 'Первой лиги';
     return 'чемпионате России';
   }
+  if(cc==='ge'){
+    if(raw.indexOf('первая лига')>=0||raw.indexOf('first league')>=0||raw.indexOf('liga 2')>=0||raw.indexOf('лига 2')>=0)
+      return 'Первой лиги Грузии';
+    return 'чемпионате Грузии';
+  }
+  if(cc==='br'){
+    if(raw.indexOf('série b')>=0||raw.indexOf('serie b')>=0||raw.indexOf('серия b')>=0||raw.indexOf('серия б')>=0||raw.indexOf('série b')>=0)
+      return 'бразильской Серии B';
+    return 'чемпионате Бразилии';
+  }
+  if(cc==='ie'){
+    if(raw.indexOf('first division')>=0||raw.indexOf('первый дивизион')>=0||raw.indexOf('division 1')>=0)
+      return 'Первого дивизиона чемпионата Ирландии';
+    return 'чемпионате Ирландии';
+  }
+  if(cc==='es'){
+    if(raw.indexOf('rfef')>=0||raw.indexOf('рфеф')>=0||raw.indexOf('primera rfef')>=0||raw.indexOf('примера рфеф')>=0)
+      return 'Примеры РФЕФ (3-й дивизион Испании)';
+    if(raw.indexOf('segunda rfef')>=0||raw.indexOf('сегунда рфеф')>=0)
+      return 'Сегунды РФЕФ (4-й дивизион Испании)';
+  }
   var champ=COUNTRY_CHAMPIONSHIP[cc];
   if(champ) return champ;
   var gen=COUNTRY_GENITIVE[cc];
@@ -636,21 +775,37 @@ function tournamentWithCountry(m){
 }
 
 function renderList(list){
+  var mode=window.SERVICE_MODE||'both';
   var byL={};
   list.forEach(function(m){var k=leagueKey(m);if(!byL[k])byL[k]=[];byL[k].push(m);});
   var lgs=ORDER.filter(function(l){return byL[l];}).concat(Object.keys(byL).filter(function(l){return ORDER.indexOf(l)<0;}));
   var h='';
+  var favT=mode==='preview'?JSON.parse(localStorage.getItem('mp_fav_tournaments')||'{}'):null;
   lgs.forEach(function(lg){
-    h+='<div class="lg-hdr">'+esc(lg)+'</div>';
+    if(mode==='preview'){
+      var isFavT=!!favT[lg];
+      h+='<div class="lg-hdr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">'+
+         '<span>'+esc(lg)+'</span>'+
+         '<button onclick="event.stopPropagation();toggleFavTournament('+jsStrLit(lg)+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:'+(isFavT?'#d97706':'#d1d5db')+';padding:2px;line-height:1;flex-shrink:0">★</button>'+
+         '</div>';
+    } else {
+      h+='<div class="lg-hdr">'+esc(lg)+'</div>';
+    }
     byL[lg].forEach(function(m){
       var id=m.id||m.match_id,dt=fdt(m.date_time);
-      var _favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
-      var _isFav=!!_favs[id];
-      h+='<div class="mi" id="mi-'+id+'" onclick="sel('+id+',this)">'+
-         '<div style="display:flex;align-items:flex-start;gap:4px">'+
-         '<div style="flex:1;min-width:0"><div class="mi-t">'+esc(tn(m.home))+' — '+esc(tn(m.away))+'</div><div class="mi-s">'+dt[0]+' · '+dt[1]+' МСК</div></div>'+
-         '<button onclick="event.stopPropagation();toggleFav('+id+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:'+(_isFav?'#d97706':'#d1d5db')+';padding:2px;line-height:1;flex-shrink:0" id="fav-'+id+'">★</button>'+
-         '</div></div>';
+      if(mode==='preview'){
+        h+='<div class="mi" id="mi-'+id+'" onclick="sel('+id+',this)">'+
+           '<div class="mi-t">'+esc(tn(m.home))+' — '+esc(tn(m.away))+'</div><div class="mi-s">'+dt[0]+' · '+dt[1]+' МСК</div>'+
+           '</div>';
+      } else {
+        var _favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+        var _isFav=!!_favs[id];
+        h+='<div class="mi" id="mi-'+id+'" onclick="sel('+id+',this)">'+
+           '<div style="display:flex;align-items:flex-start;gap:4px">'+
+           '<div style="flex:1;min-width:0"><div class="mi-t">'+esc(tn(m.home))+' — '+esc(tn(m.away))+'</div><div class="mi-s">'+dt[0]+' · '+dt[1]+' МСК</div></div>'+
+           '<button onclick="event.stopPropagation();toggleFav('+id+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:'+(_isFav?'#d97706':'#d1d5db')+';padding:2px;line-height:1;flex-shrink:0" id="fav-'+id+'">★</button>'+
+           '</div></div>';
+      }
     });
   });
   document.getElementById('ml').innerHTML=h;
@@ -686,10 +841,7 @@ function sel(id,el){
         (ref?'<div class="mc-chip">Рефери — <b>'+esc(ref)+'</b></div>':'')+
       '</div>'+
     '</div>'+
-    '<div class="btns">'+
-      '<button class="bp" id="bp" onclick="gen(\'p\')">📝 Сгенерировать превью</button>'+
-      '<button class="bf" id="bf" onclick="gen(\'f\')">🎯 Сгенерировать прогноз</button>'+
-    '</div>'+
+    actionPanelHtml()+
     '<div style="margin-bottom:14px">'+
       '<button onclick="showOddsDebug()" style="width:100%;background:#f9fafb;border:1px dashed #d1d5db;color:#6b7280;border-radius:8px;padding:8px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'#f9fafb\'">🔍 Показать полный odds JSON</button>'+
     '</div>'+
@@ -986,9 +1138,27 @@ function translit(s){
   };
   // Try word-by-word for common words
   var words=s.split(/(\s+|-)/);
-  var result=words.map(function(w){
+  var multiMap=[['Shch','Щ'],['shch','щ'],['Yo','Ё'],['yo','ё'],['Yu','Ю'],['yu','ю'],['Ya','Я'],['ya','я'],['Zh','Ж'],['zh','ж'],['Kh','Х'],['kh','х'],['Ts','Ц'],['ts','ц'],['Ch','Ч'],['ch','ч'],['Sh','Ш'],['sh','ш']];
+  var singleMap={'a':'а','b':'б','v':'в','g':'г','d':'д','e':'е','z':'з','i':'и','y':'й','k':'к','l':'л','m':'м','n':'н','o':'о','p':'п','r':'р','s':'с','t':'т','u':'у','f':'ф','c':'к','j':'дж','x':'кс','w':'в','q':'к','h':'х','A':'А','B':'Б','V':'В','G':'Г','D':'Д','E':'Е','Z':'З','I':'И','K':'К','L':'Л','M':'М','N':'Н','O':'О','P':'П','R':'Р','S':'С','T':'Т','U':'У','F':'Ф','Y':'Й','C':'К','J':'Дж','X':'Кс','W':'В','Q':'К','H':'Х'};
+  function translitWord(w){
     if(map[w]) return map[w];
-    return w;
+    if(!/[A-Za-z]/.test(w)) return w; // знаки/цифры/уже кириллица — без изменений
+    var res='', i=0;
+    while(i<w.length){
+      var matched=false;
+      for(var mi=0;mi<multiMap.length;mi++){
+        var pair=multiMap[mi];
+        if(w.substr(i,pair[0].length)===pair[0]){res+=pair[1];i+=pair[0].length;matched=true;break;}
+      }
+      if(matched) continue;
+      var ch=w[i];
+      res+=(singleMap[ch]!==undefined?singleMap[ch]:ch);
+      i++;
+    }
+    return res;
+  }
+  var result=words.map(function(w){
+    return translitWord(w);
   }).join('');
   return result;
 }
@@ -1112,7 +1282,7 @@ async function gen(type){
   // null = не генерировалось, '' = очищено. Оба случая — генерируем заново
   if(type==='p'&&pt!==null&&pt!==''){show('p');return;}
   if(type==='f'&&ft!==null&&ft!==''){show('f');return;}
-  document.getElementById('bp').disabled=true;document.getElementById('bf').disabled=true;
+  setBtnDisabled('bp',true);setBtnDisabled('bf',true);
   document.getElementById('rb').innerHTML='<div class="ld"><div class="sp"></div><span style="color:#9ca3af">'+(type==='p'?'Генерируем превью...':'Генерируем прогноз...')+'</span></div>';
   ss('Генерируем...');
   try{
@@ -1204,7 +1374,7 @@ async function gen(type){
         ];
         var bestStreak=null;
         events.forEach(function(ev){
-          var streak=0;
+          var streak=0, totalScored=0;
           for(var i=0;i<valid.length;i++){
             var mm=valid[i];
             var isHome=(mm.home.id===teamId);
@@ -1212,10 +1382,15 @@ async function gen(type){
             var conceded=isHome?mm.away.goals:mm.home.goals;
             var result=scored>conceded?'W':(scored<conceded?'L':'D');
             var r={result:result,scored:scored,conceded:conceded};
-            if(ev.fn(r)) streak++; else break;
+            if(ev.fn(r)){streak++;totalScored+=scored;}else break;
           }
           if(streak>=3&&(!bestStreak||streak>bestStreak.count)){
-            bestStreak={key:ev.key,label:ev.label,count:streak};
+            // Добавляем сумму голов если команда забивала подряд И голов в 1.5+ раза больше матчей
+            var goalSum=null;
+            if((ev.key==='scored'||ev.key==='scored2')&&totalScored>=streak*1.5){
+              goalSum=totalScored;
+            }
+            bestStreak={key:ev.key,label:ev.label,count:streak,goalSum:goalSum};
           }
         });
         return {
@@ -1316,6 +1491,7 @@ async function gen(type){
         tournament: (function(){var t=tournamentWithCountry(m);return t==='__friendly__'?'товарищеском матче':t;})(),
         stadium: translit(m.stadium&&(m.stadium.name_ru||m.stadium.name_en||m.stadium.name)||''),
         date: dt[0], time: dt[1],
+        year: (function(){if(!m.date_time)return null;var yd=new Date(new Date(m.date_time).getTime()+3*3600*1000);return yd.getUTCFullYear();})(),
         round: (function(){var t=tournamentWithCountry(m);return t==='__friendly__'?null:(m.round||m.tour||null);})(),
         home_section: homeSection,
         away_section: awaySection,
@@ -1477,6 +1653,22 @@ async function gen(type){
         var _compName=(M[sid].competition&&(M[sid].competition.name_ru||M[sid].competition.name_en)||'').toLowerCase();
         var isNational=(_compCode==='WC'||_compCode==='FIFA_WC'||_compCode==='EURO'||_compCode==='UEFA_EURO'||_compCode==='CONMEBOL_WCQ'||_compCode==='UEFA_NL'||_compCode==='AFCON'||_compCode==='COPA'||_compCode==='GOLD_CUP'||_compCode==='NATIONS'||_compName.indexOf('чемпионат мира')>=0||_compName.indexOf('world cup')>=0||_compName.indexOf('euro')>=0||_compName.indexOf('кубок африки')>=0||_compName.indexOf('лига наций')>=0||_compName.indexOf('copa america')>=0||_compName.indexOf('gold cup')>=0||_compName.indexOf('товарищ')>=0);
         function qName(n){return isNational?n:'«'+n+'»';}
+        // Эвристическое склонение названия сборной в родительный падеж (для конструкций «матчах сборной X»).
+        // Покрывает большинство случаев (страны на -ия/-ея, на согласную, на -а), но не гарантирует 100% для
+        // составных названий (Кот-д'Ивуар, Южная Корея и т.п.) — для них возвращается исходное имя без изменений.
+        function genitiveCountry(n){
+          if(!n) return n;
+          var exc={'США':'США','ОАЭ':'ОАЭ','ЮАР':'ЮАР','СССР':'СССР','Египет':'Египта','Нидерланды':'Нидерландов'};
+          if(exc[n]) return exc[n];
+          if(/(ия|ея|уя)$/.test(n)) return n.slice(0,-1)+'и';
+          if(/[кгхшжчщ]а$/.test(n)) return n.slice(0,-1)+'и';
+          if(/а$/.test(n)) return n.slice(0,-1)+'ы';
+          if(/й$/.test(n)) return n.slice(0,-1)+'я';
+          if(/[бвгджзклмнпрстфхцчшщ]$/.test(n)) return n+'а';
+          return n;
+        }
+        // Для тотал/BTS-конструкций у сборных используем «сборной [Страна в родительном]», у клубов — кавычки как обычно
+        function totalRef(n){return isNational?('сборной '+genitiveCountry(n)):qName(n);}
         var hlmT=enr?enr.home_last_matches||[]:[];
         var almT=enr?enr.away_last_matches||[]:[];
         var h2hT=enr?enr.h2h_matches||[]:[];
@@ -1571,12 +1763,17 @@ async function gen(type){
         trendChecks.forEach(function(chk){
           var srcKey=chk.src; // h или a
           // Проверяем все источники для этой команды
+          // Для сборных (ЧМ/Евро/Лига наций/товарищеские/нейтральное поле) — без разбивки на дом/выезд
           var srcsToCheck=[];
-          if(srcKey==='h') srcsToCheck=[
+          if(srcKey==='h') srcsToCheck=isNational?[
+            {arr:hlmT,   label:chk.label(0,hName), suffix:''},
+          ]:[
             {arr:hlmT,   label:chk.label(0,hName), suffix:''},
             {arr:hlmHome,label:chk.label(0,hName)+' дома', suffix:' дома'},
           ];
-          if(srcKey==='a') srcsToCheck=[
+          if(srcKey==='a') srcsToCheck=isNational?[
+            {arr:almT,   label:chk.label(0,aName), suffix:''},
+          ]:[
             {arr:almT,   label:chk.label(0,aName), suffix:''},
             {arr:almAway,label:chk.label(0,aName)+' в гостях', suffix:' в гостях'},
           ];
@@ -1691,18 +1888,18 @@ async function gen(type){
                   var btsLoc=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
                   var btsTeamS=mBtsS[1].trim().replace(/ дома$/,'').replace(/ в гостях$/,'');
                   var btsVar=Math.floor(Math.random()*3);
-                  if(btsVar===0) line='В '+t.streak+' последних '+btsLoc+'матчах '+qName(btsTeamS)+' забивают обе команды';
-                  else if(btsVar===1) line='В '+t.streak+' последних '+btsLoc+'выездах '+qName(btsTeamS)+' отличились обе команды';
-                  else line='В '+t.streak+' последних '+btsLoc+'матчах '+qName(btsTeamS)+' прошла ставка «обе забьют»';
+                  if(btsVar===0) line='В '+t.streak+' последних '+btsLoc+'матчах '+totalRef(btsTeamS)+' забивают обе команды';
+                  else if(btsVar===1) line='В '+t.streak+' последних '+btsLoc+'выездах '+totalRef(btsTeamS)+' отличились обе команды';
+                  else line='В '+t.streak+' последних '+btsLoc+'матчах '+totalRef(btsTeamS)+' прошла ставка «обе забьют»';
                 } else
                 var mST=lbl.match(/в матче с участием (.+?) — (.+)/i);
                 if(mST){
                   var stName=mST[1].trim(), stEvent=mST[2].trim();
                   var stLoc=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
                   var stEventF=stEvent.indexOf('тотал')>=0?stEvent.replace('тотал','проходит тотал'):stEvent;
-                  line='В '+t.streak+' последних '+stLoc+'матчах '+qName(stName)+' '+stEventF;
+                  line='В '+t.streak+' последних '+stLoc+'матчах '+totalRef(stName)+' '+stEventF;
                 } else {
-                  line=lbl+' — в '+t.streak+' матчах подряд';
+                  line=null; // нераспознанный формат — лучше пропустить строку, чем вывести сырые данные
                 }
               }
             } else {
@@ -1716,9 +1913,9 @@ async function gen(type){
                   var locW2=locSfx===' дома'?'домашних ':locSfx===' в гостях'?'выездных ':'';
                   var btsTeamP=mBts[1].trim().replace(/ дома$/,'').replace(/ в гостях$/,'');
                   var btsV=Math.floor(Math.random()*3);
-                  if(btsV===0) line='В '+t.n+' из '+t.of+' последних '+locW2+'матчей '+qName(btsTeamP)+' забивают обе команды';
-                  else if(btsV===1) line='В '+t.n+' из '+t.of+' последних '+locW2+'выездов '+qName(btsTeamP)+' отличились обе команды';
-                  else line='В '+t.n+' из '+t.of+' последних '+locW2+'матчей '+qName(btsTeamP)+' прошла ставка «обе забьют»';
+                  if(btsV===0) line='В '+t.n+' из '+t.of+' последних '+locW2+'матчей '+totalRef(btsTeamP)+' забивают обе команды';
+                  else if(btsV===1) line='В '+t.n+' из '+t.of+' последних '+locW2+'выездов '+totalRef(btsTeamP)+' отличились обе команды';
+                  else line='В '+t.n+' из '+t.of+' последних '+locW2+'матчей '+totalRef(btsTeamP)+' прошла ставка «обе забьют»';
                 } else
                 var m1=lbl.match(/в матче с участием (.+?) — (.+)/i);
                 if(m1){
@@ -1735,14 +1932,15 @@ async function gen(type){
                     var re=new RegExp('[\\s]+'+locTrim.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$');
                     eFclean=eF.replace(re,'');
                   }
-                  line='В '+t.n+' из '+t.of+' последних '+locW+'матчей '+qName(tPt)+' '+eFclean;
+                  line='В '+t.n+' из '+t.of+' последних '+locW+'матчей '+totalRef(tPt)+' '+eFclean;
                 } else {
-                  line='В '+t.n+' из '+t.of+' последних матчей — '+lbl;
+                  line=null; // нераспознанный формат — лучше пропустить строку, чем вывести сырые данные
                 }
               }
             }
             return line;
           });
+          tLines=tLines.filter(function(l){return !!l;});
           matchInfo.trends_text=tLines.map(function(l,i){
             return '• '+l+(i===tLines.length-1?'.':';');
           }).join('\n');
@@ -1764,9 +1962,27 @@ async function gen(type){
         delete matchInfo.trends_text;delete matchInfo.trends_lines;
       }
       userMsg='ДАННЫЕ МАТЧА:\\n'+JSON.stringify(matchInfo,null,2)+'\\n\\nДАННЫЕ ЛИНИИ:\\n'+JSON.stringify(oddsLine,null,2)+_tb+'\\n\\nНапиши превью строго по шаблону.';
-      var txt=await cl(sys,userMsg,2048);
-      // Remove broken UTF-8 emoji artifacts
-      txt=txt.replace(/[\uD800-\uDFFF]|[\u{1F000}-\u{1FFFF}]/gu,'').replace(/[^\x00-\xFF\u0400-\u04FF\u2000-\u206F\u2190-\u21FF\u2600-\u27BF«»—–]/g,'');
+      var txt, _violations=[], _attempt=0;
+      while(_attempt<3){
+        _attempt++;
+        if(_attempt===1){
+          txt=await cl(sys,userMsg,2048);
+        } else {
+          // Не слепая перегенерация с нуля — точечная правка через промт-корректор,
+          // которому передаём конкретный список найденных нарушений
+          ss('Найдены ошибки, исправляем ('+_attempt+'/3)...');
+          txt=await cl(FIXP,buildFixUserMsg(txt,_violations,'p'),2048);
+        }
+        // Remove broken UTF-8 emoji artifacts
+        txt=txt.replace(/[\uD800-\uDFFF]|[\u{1F000}-\u{1FFFF}]/gu,'').replace(/[^\x00-\xFF\u0400-\u04FF\u2000-\u206F\u2190-\u21FF\u2600-\u27BF«»—–]/g,'');
+        _violations=validateGenText(txt,oddsLine);
+        if(_violations.length===0) break;
+      }
+      if(_violations.length>0){
+        showFlagged('p',txt,_violations);
+        ss('⚠️ Требует внимания');
+        return;
+      }
 
       // Inject shortcodes
       try{
@@ -1797,21 +2013,39 @@ async function gen(type){
           txt=txt.replace(/(###\s*Фор[ыа][\s\S]*?)(\n+###|\s*$)/i, '$1'+sc2tag+'$2');
         }
 
+        // Валидация «Прогноз по тоталу»: коэффициент должен совпадать с одним из допустимых тотальных рынков
+        var totalAllowedFields=['total_main_over','total_main_under','total_next_over','total_next_under','it1_main_over','it1_main_under','it2_main_over','it2_main_under'];
+        var totalAllowedVals=totalAllowedFields.map(function(f){var v=oddsLine[f];return v!=null?parseFloat(String(v).replace(',','.')):null;}).filter(function(v){return v!=null&&!isNaN(v);});
+        var totMatch=txt.match(/Прогноз по тоталу:\s*([^\n*]+?)\s+с\s+коэффициентом\s+([\d,\.]+)/i);
+        if(totMatch){
+          var totOdd=parseFloat(totMatch[2].replace(',','.'));
+          var totOk=totalAllowedVals.some(function(v){return Math.abs(v-totOdd)<0.02;});
+          if(!totOk){
+            var totWarn=''; // предупреждения редактору убраны — текст идёт напрямую читателю
+            txt=txt.replace(/(Прогноз по тоталу:[^\n]+)/i,'$1'+totWarn);
+          }
+        }
+
         // SC3: after Прогноз section - extract bet and odds from "Прогноз: X с коэффициентом Y"
+        var allAllowedFields=['p1','px','p2','p1x','px2','p12','total_main_over','total_main_under','total_next_over','total_next_under','it1_main_over','it1_main_under','it2_main_over','it2_main_under','bts','main_h1_odd','main_h2_odd','h1_neg15','h2_pos15','h1_neg25','h2_pos25'];
+        var allAllowedVals=allAllowedFields.map(function(f){var v=oddsLine[f];return v!=null?parseFloat(String(v).replace(',','.')):null;}).filter(function(v){return v!=null&&!isNaN(v);});
         var progMatch=txt.match(/Прогноз:\s*([^\n]+?)\s+с\s+коэффициентом\s+([\d,\.]+)/i);
         if(progMatch){
           var sc3title=progMatch[1].trim();
           sc3title=sc3title.charAt(0).toUpperCase()+sc3title.slice(1);
           var sc3odds=parseFloat(progMatch[2].replace(',','.')).toFixed(2);
+          var progOddNum=parseFloat(progMatch[2].replace(',','.'));
+          var progOk=allAllowedVals.some(function(v){return Math.abs(v-progOddNum)<0.02;});
           var sc3tag="\n\n[rb_bet title='"+sc3title+"' id='"+scId+"' odds='"+sc3odds+"']";
+          // Несовпадение кэфа — молча игнорируем, текст публикуется как есть
           txt=txt.replace(/(Прогноз:[^\n]+)(\s*$)/i, '$1'+sc3tag+'$2');
         }
       }catch(e){}
 
       pt=txt; saveTexts();
       show(type); ss('Готово ✓');
-      document.getElementById('bp').disabled=false;
-      document.getElementById('bf').disabled=false;
+      setBtnDisabled('bp',false);
+      setBtnDisabled('bf',false);
       return;
     }
     // ── Forecast: trend check ─────────────────────────────────────────────
@@ -1821,6 +2055,11 @@ async function gen(type){
       var hlm2=enr.home_last_matches||[];
       var alm2=enr.away_last_matches||[];
       var h2h2=enr.h2h_matches||[];
+
+      // Определяем матчи сборных — та же логика, что и в превью
+      var _compCode2=(M[sid].competition&&M[sid].competition.code||'').toUpperCase();
+      var _compName2=(M[sid].competition&&(M[sid].competition.name_ru||M[sid].competition.name_en)||'').toLowerCase();
+      var isNational2=(_compCode2==='WC'||_compCode2==='FIFA_WC'||_compCode2==='EURO'||_compCode2==='UEFA_EURO'||_compCode2==='CONMEBOL_WCQ'||_compCode2==='UEFA_NL'||_compCode2==='AFCON'||_compCode2==='COPA'||_compCode2==='GOLD_CUP'||_compCode2==='NATIONS'||_compName2.indexOf('чемпионат мира')>=0||_compName2.indexOf('world cup')>=0||_compName2.indexOf('euro')>=0||_compName2.indexOf('кубок африки')>=0||_compName2.indexOf('лига наций')>=0||_compName2.indexOf('copa america')>=0||_compName2.indexOf('gold cup')>=0||_compName2.indexOf('товарищ')>=0);
 
       function goals(m){var h=m.home&&m.home.goals,a=m.away&&m.away.goals;return(h!=null&&a!=null)?h+a:null;}
       function homeWin(m){return m.home&&m.away&&m.home.goals!=null&&m.home.goals>m.away.goals;}
@@ -1844,7 +2083,11 @@ async function gen(type){
       var h2hHomeDome=h2h2.filter(function(m){return m.home&&m.home.id===hid2;});
       var h2hAwayAway=h2h2.filter(function(m){return m.away&&m.away.id===aid2;});
 
-      var sets=[
+      var sets=isNational2?[
+        {matches:hlm2,        label:'хозяин (все матчи)', team:'home'},
+        {matches:alm2,        label:'гость (все матчи)', team:'away'},
+        {matches:h2h2,        label:'личные встречи', team:'both'},
+      ]:[
         {matches:homeMH,      label:'хозяин дома', team:'home'},
         {matches:awayMA,      label:'гость на выезде', team:'away'},
         {matches:hlm2,        label:'хозяин (все матчи)', team:'home'},
@@ -1931,7 +2174,24 @@ async function gen(type){
       var kfText=(kfEl?kfEl.value.trim():'')||window._kfSaved||'';
       if(kfText) window._kfSaved=kfText;
       var kfPrefix=kfText?'ОБЯЗАТЕЛЬНО ВКЛЮЧИ В ТЕКСТ СЛЕДУЮЩИЕ ФАКТЫ (они важнее всего остального):\n'+kfText+'\n\n':'';
-      var txt=await cl(sys,(enr._trends_summary?'📊 '+enr._trends_summary+'\n\n':'')+kfPrefix+'Напиши прогноз на основе данных:\n\n'+JSON.stringify(enr,null,2),2048);
+      var _fmsg=(enr._trends_summary?'📊 '+enr._trends_summary+'\n\n':'')+kfPrefix+'Напиши прогноз на основе данных:\n\n'+JSON.stringify(enr,null,2);
+      var txt, _violationsF=[], _attemptF=0;
+      while(_attemptF<3){
+        _attemptF++;
+        if(_attemptF===1){
+          txt=await cl(sys,_fmsg,2048);
+        } else {
+          ss('Найдены ошибки, исправляем ('+_attemptF+'/3)...');
+          txt=await cl(FIXP,buildFixUserMsg(txt,_violationsF,'f'),2048);
+        }
+        _violationsF=validateGenText(txt,enr&&enr._odds_line);
+        if(_violationsF.length===0) break;
+      }
+      if(_violationsF.length>0){
+        showFlagged('f',txt,_violationsF);
+        ss('⚠️ Требует внимания');
+        return;
+      }
       ft=txt; saveTexts();
       show(type); ss('Готово ✓');
     }
@@ -1939,7 +2199,7 @@ async function gen(type){
     document.getElementById('rb').innerHTML='<div style="padding:14px;color:#ef4444"><b>Ошибка:</b> '+esc(e.message)+'</div>';
     ss('Ошибка');
   }finally{
-    document.getElementById('bp').disabled=false;document.getElementById('bf').disabled=false;
+    setBtnDisabled('bp',false);setBtnDisabled('bf',false);
   }
 }
 
@@ -2080,13 +2340,26 @@ async function doCopy(type){
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────────
-var PS='Ты пишешь ставочное превью на футбольный матч. Используй ТОЛЬКО данные из раздела ДАННЫЕ ЛИНИИ. Не додумывай, не галлюцинируй, не добавляй ничего от себя.\n\nГЛАВНОЕ ПРАВИЛО:\nВесь материал основан исключительно на данных из линии матча. Если каких-то позиций нет в данных (null) — эта часть пропускается. Запрещено использовать другие данные, додумывать или выдумывать информацию.\n\nФОРМАТ ТЕКСТА:\nКаждый раздел — единый связный абзац без переносов строк внутри. Все предложения идут подряд через пробел. Переносы строки только между разделами (### заголовок).\n\nРАЗНООБРАЗИЕ В УПОМИНАНИИ КОМАНД:\nЧередуй разные способы обозначать команды — не повторяй один и тот же вариант подряд:\n- Кавычки ТОЛЬКО для: клубных команд («Барселона», «Реал», «Спартак»), названий стадионов («Лужники», «Камп Ноу»), ставки «12» и «обе забьют». Направления тотала: «верх», «низ». ЗАПРЕЩЕНО ставить кавычки на: сборные (Франция, Шотландия, Гаити, США и т.д.), турниры, города, любые другие слова\n- Сборные (названия стран) — БЕЗ кавычек: Нидерланды, Франция, Испания, Германия, Бразилия и т.д.\n- Роль: хозяева / гости / принимающая сторона\n- Тренер (если home_coach/away_coach не null и имя на кириллице): «команда [тренер]» / «банда [тренер]» / «игроки [тренер]»\n\nСКЛОНЕНИЕ КОМАНД:\nНазвания команд склоняются по-русски везде кроме заголовка раздела:\n- «На победу «Ливерпуля»» (родительный падеж)\n- «коэффициент на то, что «Ливерпуль» не проиграет» (именительный — после «что»)\n- «аналогичный вариант для «Расинга»» (родительный)\nЕсли название не склоняется по-русски (иностранное, аббревиатура) — оставь как есть.\n\nОПРЕДЕЛЕНИЯ:\n- favorite="home_super" → случайно один из: «Букмекеры считают хозяев суперфаворитами встречи» / «Букмекерским суперфаворитом матча считается «[home]»» / «Букмекеры считают хозяев суперфаворитами этого противостояния»\n- favorite="home_big" → случайно один из: «Букмекеры считают хозяев большими фаворитами встречи» / «Букмекерским фаворитом встречи с большим перевесом считается «[home]»» / «Букмекеры видят хозяев явными фаворитами»\n- favorite="home_solid" → случайно один из: «Букмекеры считают хозяев приличными фаворитами» / «Букмекерским фаворитом встречи считается «[home]»» / «Букмекерским фаворитом встречи считаются хозяева»\n- favorite="home" → случайно один из: «Букмекеры считают хозяев фаворитами встречи» / «Букмекерским фаворитом встречи считается «[home]»» / «Букмекерским фаворитом матча считаются хозяева»\n- favorite="away_super" → случайно один из: «Букмекеры считают гостей суперфаворитами встречи» / «Букмекерским суперфаворитом матча считается «[away]»» / «Букмекеры считают гостей суперфаворитами этого противостояния»\n- favorite="away_big" → случайно один из: «Букмекеры считают гостей большими фаворитами встречи» / «Букмекерским фаворитом встречи с большим перевесом считается «[away]»» / «Букмекеры видят гостей явными фаворитами»\n- favorite="away_solid" → случайно один из: «Букмекеры считают гостей приличными фаворитами» / «Букмекерским фаворитом встречи считается «[away]»» / «Букмекерским фаворитом встречи считаются гости»\n- favorite="away" → случайно один из: «Букмекеры считают гостей фаворитами встречи» / «Букмекерским фаворитом встречи считается «[away]»» / «Букмекерским фаворитом матча считаются гости»\n- favorite="none" → «Букмекеры не выделяют явного фаворита в этой встрече»\n- extreme_h_is_home=true → крайняя фора на хозяев ([home]), false → на гостей ([away])\n\nФОРМАТ ЧИСЕЛ:\nКоэффициенты: 1,40 / 2,00 / 6,54 (запятая, всегда два знака после запятой)\nТоталы: если число с запятой — «2,5 гола», если в скобках — «(2) гола»\n\nЗАПРЕЩЕНО:\n- Стадион: пиши «на стадионе «Название»» с кавычками — НО только если название НЕ содержит слово «стадион». Если название содержит слово «стадион» (в любом месте — в начале, середине, конце) — НЕ пиши «на стадионе», а используй само название как предложный оборот: «Муниципальный стадион Флориды» → «на Муниципальном стадионе Флориды»; «Стадион Рамаз Шенгелиас Сахелобис» → «на стадионе Рамаз Шенгелиас Сахелобис» (без кавычек). Если название содержит «имени» или «им.» — без кавычек: «на стадионе имени Каджимукана Мунайтпасова». Если stadium содержит латинские буквы — транслитерируй название в кириллицу по правилам русской транслитерации.\n- Английский язык — СТРОГО ЗАПРЕЩЁН. Ни одного английского слова, буквы, аббревиатуры. Все названия команд, стадионов, турниров, городов — ТОЛЬКО по-русски. Если в данных есть английское название — транскрибируй по-русски и используй эту транскрипцию до конца превью (и в следующих генерациях по этому же матчу). Примеры транскрипции: Old Trafford → Олд Траффорд, Anfield → Энфилд, Santiago Bernabéu → Сантьяго Бернабеу, Parc des Princes → Парк де Пренс.\n- Запрещённые слова и выражения: поединок · поединка · поединков · поединку · поединкам · поединками · поединке · поединках (ВСЕ формы запрещены) · дуэль · успех · триумф · подспорье · стабильно · нестабильно · нестабильный · переменчивый · уверенная игра · характер игры · в общем зачёте · тренд · крыть/закрыть фору · брать (победить) · показали победы (верно: одержали) · потерпели ничью / потерпели ничьи (верно: сыграли вничью / дважды сыграли вничью) · одержала ничью / одержала ничьи / одержал ничью / одержал ничьи (ничья не одерживается) · одержала поражение / одержала поражения / одержал поражение / одержал поражения (поражение не одерживается — верно: потерпела поражение) · превышать / превышает / превысить (и все производные) · отметка (как в «тотал превысил отметку») · аргумент · фактор · класс команды · выше порога · устойчивый\n- Менять структуру или порядок разделов\n- Писать про null-значения\n- Добавлять что-то от себя\n- Делать переносы строк внутри раздела\n- Начинать предложение после маркера списка (•) со строчной буквы. ВСЕГДА: предложение после «•» начинается с ЗАГЛАВНОЙ буквы\n- Повторять одно и то же слово (или однокоренные слова) дважды в одном предложении. Перефразируй чтобы избежать повтора\n- Использовать эмодзи или специальные символы в тексте\n- Самоисправляться прямо в тексте («извини», «то есть», «вернее», «точнее» и любые подобные оговорки). Если допустил ошибку — просто напиши правильно, без пометок\n- Игнорировать примеры правок редактора. ВАЖНО: если в данных есть блок «ПРИМЕРЫ ПРАВОК РЕДАКТОРА» — это реальные правки человека к предыдущим генерациям. Учитывай их стиль, формулировки и предпочтения как приоритетные инструкции в текущей генерации\n- Использовать слово «поединок» или «поединках»\n- Упоминать имя тренера более одного раза за всю генерацию. После первого упоминания — только название команды («Крузейру», «хозяева», «гости»). Это правило абсолютное.\n\nРАСШИРЕННЫЕ ПРАВИЛА КАЧЕСТВА И ВЫБОРА СТАВКИ:\n- Орфография и грамматика: всегда проверяй текст перед выводом. Не допускай пропуска букв ни в начале, ни в середине слова (правильно «французов», а не «ранцузов»; «вкладе», а не «вклае»). Не допускай обрывов слов и несуществующих словоформ. Проверяй согласование падежей, чисел и родов — текст должен выглядеть как материал профессионального спортивного редактора.\n- Склонение сборных: используй правильные падежные формы названий сборных — «сборная Ирака», «сборная Норвегии», «сборная Франции», «сборная Германии», «сборная Англии». Правильно: «Сборная Ирака сыграет против сборной Норвегии». Неправильно: «Сборная Ирак сыграет против сборной Норвегия».\n- Кавычки — уточнение: устоявшиеся аббревиатуры и короткие официальные названия клубов пишутся БЕЗ кавычек (ЦСКА, ПСЖ, МЮ, РФШ, БФК Даугавпилс и подобные). Полноценные названия клубов («Барселона», «Реал», «Спартак») — в кавычках как обычно.\n- Учёт типа турнира: для чемпионатов мира, чемпионатов Европы, Лиги наций сборных, товарищеских матчей сборных, финалов кубков и матчей на нейтральном поле — НЕ делай выводов на основании статистики «дома»/«в гостях» и не упоминай домашнее преимущество. Анализируй обе команды на равных условиях, используй только общие показатели и общие тренды последних матчей.\n- Выбор рынка для итогового прогноза: оценивай не только исход матча, но и тотал больше/меньше, индивидуальные тоталы команд, форы, обе забьют и двойной шанс — выбирай рынок с наиболее сильным статистическим и логическим обоснованием, а не просто самый очевидный. Если тренды по тоталу или форе выглядят надёжнее и ценнее исхода — отдавай предпочтение им. Если коэффициент на исход слишком низкий (например 1,15–1,35), переключайся на тотал, индивидуальный тотал или фору в рамках допустимых рынков. Уже работающая логика приоритета по коэффициентам (1,40 → 1,30 → 1,75, см. ниже) остаётся в силе — это дополнительный критерий выбора между подходящими рынками, а не замена порогов.\n- Тренды должны напрямую поддерживать выбранную ставку: для тотала — акцент на результативности команд, для форы — на разнице в классе и результатах. Не используй тренды, не относящиеся к выбранному рынку.\n- Финальный контроль перед выводом: убедись, что итоговый прогноз присутствует; нет орфографических ошибок и пропущенных букв; названия сборных склоняются правильно; кавычки оформлены по правилам выше; не выбран слишком низкий коэффициент без веских оснований; не упущен более сильный вариант по тоталу или форе; не использована «домашне-гостевая» статистика для матчей сборных, финалов и нейтральных полей.\n\n═══ ШАБЛОН (строго соблюдать) ═══\n\nВводный абзац (одним блоком без переносов): «В [round]-м туре [tournament] «[home]» примет «[away]» на стадионе «[stadium]». Матч пройдёт [date], стартовый свисток прозвучит в [time] по московскому времени. В этом материале рассмотрим котировки на игру, которые предлагают букмекеры.»\nЕсли round=null → «В матче [tournament]...» (не придумывай тур, финал, стадию)\nЕсли tournament=«товарищеском матче» → «В товарищеском матче [home] примет [away] на стадионе «[stadium]»...» (НЕ «В матче товарищеского матча»).\nЧЕМПИОНАТ МИРА (ЧМ) — специальные правила вводного абзаца:\nЕсли tournament содержит «ЧМ» или «чемпионат мира» — используй «ЧМ-[год]» и никогда НЕ пиши «примет» (у сборных нет домашней арены как у клубов). Вместо «примет» — «сыграет против».\nГрупповой этап: «В [N]-м туре группового этапа ЧМ-[год] сборная [home] сыграет против сборной [away] на стадионе «[stadium]». Матч пройдёт [date]...»\nПримеры тура: 1-й тур, 2-й тур, 3-м туре → форма согласуется: «В 1-м туре», «В 2-м туре», «В 3-м туре».\nСтадия плей-офф:\n  1/16 финала: «В 1/16 финала ЧМ-[год] сборная [home] сыграет против сборной [away]...»\n  1/8 финала: «В 1/8 финала ЧМ-[год]...»\n  1/4 финала: «В 1/4 финала ЧМ-[год]...»\n  Полуфинал: «В полуфинале ЧМ-[год]...»\n  Финал: «В финале ЧМ-[год]...»\nВажно: [tournament] уже содержит правильное название в родительном падеже (например «чемпионате Грузии», «чемпионате России», «Лиге 1», «Серии А»). Используй его как есть — «В [round]-м туре [tournament]».\nСБОРНЫЕ (названия стран): Нидерланды, Франция, Испания, Германия, Бразилия и т.д. — пишутся БЕЗ кавычек везде в тексте. Клубные команды — в «кавычках».\n\n### Команды\n[ТОЛЬКО если home_section или away_section не null]\n[ВЕСЬ раздел — ОДИН ЕДИНЫЙ АБЗАЦ без каких-либо переносов строк (Enter). Все предложения идут подряд через пробел.]\\nЗАПРЕЩЕНО в разделе Команды: упоминание тотала в любом виде («тотал больше/меньше», «пробили тотал», «обе команды забили» в контексте статистики тоталов) — это идёт только в раздел Тотал. Прогнозы и выводы о ставках в разделе Команды запрещены.\n\nПоследовательность предложений внутри абзаца:\n\n1. Про хозяев — место и очки. Вариации для 1-го места: «расположился на вершине таблицы с [points] очками» / «располагается на 1-й строчке в таблице с [points] очками» / «занимает первое место в таблице с [points] очками». Для остальных мест: «занимает [pos]-е место в таблице с [points] очками» / «расположился на [pos]-й строчке в таблице с [points] очками» / «занимает [pos]-ю строчку в таблице с [points] очками». Если pos/points null — пропусти.\n\n2. Итог последних 5 матчей хозяев — числа прописью до 9. ПРАВИЛО: упоминай только то, чего больше нуля. Если поражений нет — не пиши про них. ПОРЯДОК: ОБЯЗАТЕЛЬНО сначала посчитай W/L/D в last5, потом расставь по убыванию количества — от большего к меньшему. Пример: W=1, L=2, D=2 → сначала поражения и ничьи (по 2), потом победа (1): «потерпели два поражения, дважды сыграли вничью и одержали одну победу». Пример: W=3, L=1, D=1 → «три победы, одно поражение и одна ничья». При равном количестве порядок: поражения → ничьи → победы. Примеры: «три победы и дважды сыграла вничью» / «три поражения и дважды сыграла вничью» / «две победы, два поражения и одна ничья». ЗАПРЕЩЕНО называть конкретных соперников и счета матчей. ИСКЛЮЧЕНИЕ — если все 5 одинаковые И streak.count>5: используй streak.count («на серии из шести побед» / «одержала шесть побед кряду» — вариативно). Если все 5 одинаковые и streak.count=5 — пиши только «одержала пять побед» БЕЗ слова «подряд» (слово «подряд» в предложениях «В последних пяти матчах...» ЗАПРЕЩЕНО). Перейди к стрику только если last5 разнородные.\n\n3. Стрик хозяев [ТОЛЬКО если home_section.streak не null, streak.count≥3]: «[home] выиграл [N] встреч кряду» / «В последних [N] матчах [home] не пропускал» / «Команда [coach] не знала поражений в [N] встречах подряд» и т.д. Если streak.count=5 и все 5 матчей одинаковые — ищи можно ли удлинить серию до 6-7-8 (но данных нет — не придумывай). ТОЛЬКО если coach на русском языке (кириллица) — используй «команда [coach]» / «банда [coach]» / «игроки [coach]». Если имя тренера содержит латинские буквы — ЗАПРЕЩЕНО упоминать вообще, используй только название команды или роль. ВАЖНО: имя тренера упоминается максимум ОДИН РАЗ за всю генерацию. После первого упоминания — только название команды или роль.\n\n4. Про гостей — то же самое: место/очки (вариации), итог 5 матчей с тем же правилом ПОРЯДКА по убыванию (W/L/D считаем, расставляем от большего к меньшему), стрик (те же правила что в п.3 — запрет счётов матчей, запрет тренеров с латинскими именами). Если три и более ничьих подряд — упомяни их со счётом: «Три последних матча «[away]» завершились вничью — [счёт1], [счёт2] и [счёт3]. До этого...»\n\n5. H2H [ТОЛЬКО если h2h_section не null]:\n- Если h2h_section.dominant_team не null (dominant_streak≥3): «В последних очных встречах сильнее выглядел «[dominant_team]» — [dominant_streak] победы подряд.» (вариативно, dominant_streak числом прописью)\n- Иначе: сначала опиши расклад по last5 (home_wins/away_wins/draws/of) — называй только то что есть. Если у одной команды 0 побед — не пиши «у «Гагры» — ноль», а скажи иначе: «у «Торпедо» четыре победы, ещё одна встреча завершилась вничью» или «все пять побед — за «Торпедо»». Если ничья одна (draws=1) — обязательно укажи её счёт: «одна встреча завершилась вничью — 1:1». Проверь: home_wins + away_wins + draws = of. Числа прописью до 9. Ноль никогда не упоминаем.\n- Если h2h_section.h2h_trends не null — после описания расклада добавь одно предложение о найденном тренде из расширенного окна. ТОЛЬКО тренды о победах команд, ничьих и BTS (обе забивают) — тренды по тоталу (over/under) в разделе Команды НЕ упоминать. Тип streak: «[label] в [streak] последних очных матчах подряд». Тип pct: «[label] — в [n] из [of] последних очных встреч». Примеры: «Обе команды забивали в семи последних очных матчах подряд.» / ««[home]» побеждал в семи из десяти последних очных встреч.» Используй только первый подходящий тренд из h2h_trends. Если тренд дублирует уже сказанное про расклад — пропусти.\n- ВАЖНО: вместо «успех» всегда пиши «победа».\n- Нулевую ничью называй «нулевая ничья», остальные — просто счётом.\n\n### Трёхисходка и двойной шанс\n[Весь раздел одним абзацем] [Фаворит или нет явного по правилу]. На победу «[home]» дают [p1], ничья идёт по [px], победа «[away]» предлагается по [p2]. Коэффициент на то, что «[home]» не проиграет — [p1x], аналогичный вариант для «[away]» — [px2]. Победа одной из команд — вариант «12» — предлагается с котировкой [p12].\n\n### Тотал\n[Весь раздел одним абзацем] Основным тоталом матча букмекеры выставили [total_main] гола — с коэффициентом [total_main_over] на больше и [total_main_under] меньше. [ТОЛЬКО если h2h_last5_total не null И h2h_last5_total.total содержит запятую (2,5 / 3,5) — добавь одно предложение. Если тотал целое число (2, 3) — пропусти. Правило:\nЕсли streak=of (все матчи — одна серия): используй streak и streak_over для формулировки:\n- streak_over=true: варьируй: «тотал [total] был пробит в каждом из [streak] последних очных матчей» / «команды пробили его в [streak] последних очных встречах» / «он был пробит в [streak] последних личных встречах между этими командами»\n- streak_over=false: «тотал [total] не был пробит ни в одном из [streak] последних очных матчей» / «команды не пробили его ни разу за последние [streak] очных встречи»\nЕсли streak<of (смешанные результаты): используй over/of для красивой фразы — КАТЕГОРИЧЕСКИ НЕ упоминай «подряд» для смешанных результатов. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать «в X из Y встреч» — только через «раз/раза». Три режима в зависимости от over и of:\nРЕЖИМ А — streak=of (все матчи, серия подряд): «команды пробили тотал [X] в каждой из [of] последних встреч» / «он был пробит в каждом из [of] последних очных матчей».\nРЕЖИМ Б — over < of/2 (чаще НЕ пробивали): добавляй «лишь» / «всего» / «лишь однажды». Формулировки: 0 — «не пробили его ни разу»; 1 — «пробили его лишь однажды» / «лишь один раз»; 2 — «пробили его лишь дважды» / «всего два раза»; 3 — «пробили его лишь трижды» / «всего три раза»; и т.д. с «лишь» или «всего».\nРЕЖИМ В — over > of/2, но streak<of (чаще пробивали): без «лишь»/«всего». Формулировки: 4 — «четыре раза»; 5 — «пять раз»; 6 — «шесть раз»; и т.д. ИСКЛЮЧЕНИЕ — если over=of-1 (пропустили ровно один): добавляй «аж»: «пробили тотал аж семь раз» (из 8), «аж девять раз» (из 10). Пример: over=3, of=8 (режим Б) → «За восемь последних очных встреч команды пробили тотал 2,5 лишь три раза.» Пример: over=7, of=8 (режим В, of-1) → «За восемь очных встреч команды пробили тотал 2,5 аж семь раз.» Начинай предложение вариативно: «В [of] последних очных встречах...» / «За [of] очных матчей...» / «В личных встречах этих команд...»] На больше [total_next] можно поставить за [total_next_over]. [ТОЛЬКО если total_highest отличается от total_main]: Самый высокий тотал по линии — [total_highest] за [total_highest_over] на «верх». [ТОЛЬКО если home_total_streak не null: добавь одно предложение про хозяев — например «В последних [streak] матчах «[home]» тотал [total] не был пробит ни разу» или ««[home]» не пробивал отметку в [total целое+1] гола в [streak] встречах подряд». Аналогично для away_total_streak.] [Если it1_main не null]: Индивидуальный тотал «[home]» [it1_main] — [it1_main_over] на больше ([it1_main_under] — меньше). [Если it2_main не null]: Индивидуальный тотал «[away]» [it2_main] — [it2_main_over] на больше ([it2_main_under] — меньше). Кэф на то, что обе команды забьют в матче — [bts]. **Прогноз по тоталу:** [1-2 предложения: конкретный факт → почему → ставка. Финальная фраза жирным: **Прогноз по тоталу: [ставка] с коэффициентом [X,XX]**. Ставка только из: total_main_over, total_main_under, total_next_over, it1_main_over, it1_main_under, it2_main_over, it2_main_under. Коэф ≥1,40 обязателен — если нет подходящего, весь блок пропустить. ЗАПРЕЩЕНО: писать «Прогноз по тоталу:» более одного раза.]\n\n### Форы\n[Весь раздел одним абзацем] Основной форой по линии идёт ([main_h1_handicap]) — с кэфами [main_h1_odd] на «[home]» и [main_h2_odd] на «[away]». [Если h1_neg15 не null]: На победу [используй название команды или «хозяева» — тренера здесь НЕ упоминай, он уже был в разделе Команды] с форой (-1,5) можно поставить за [h1_neg15], обратный коэффициент (+1,5) на [«гостей» или ««[away]»»] — [h2_pos15]. [ТОЛЬКО если extreme_h_handicap отличается от main_h1_handicap]: Крайняя фора в линии — «[если extreme_h_is_home=true то home, иначе away]» ([extreme_h_handicap]) с коэффициентом [extreme_h_odd].\n\n### Угловые\n(Этот раздел ТОЛЬКО если corners_main не null. Иначе пропусти полностью — не пиши заголовок.)\n[Весь раздел одним абзацем] Тотал по угловым — [corners_main] угловых за [corners_main_over] на больше. [ТОЛЬКО если corners_next не null]: [corners_next — это граница тотала (например 9,5). corners_next_over — коэффициент на БОЛЬШЕ (ТБ, минимум 10). corners_next_under — коэффициент на МЕНЬШЕ (ТМ, максимум 9). Формулировка: «Коэффициент на то, что в матче будет минимум [corners_next целое+1] угловых, букмекеры дают [corners_next_over] (максимум [corners_next целое] — [corners_next_under]).» НЕ добавляй слова «на меньше» или «на больше» после коэффициентов в угловых — просто число. Пример: corners_next=9,5, corners_next_over=1,85, corners_next_under=2,47 → «минимум 10 угловых, букмекеры дают 1,85 (максимум 9 — 2,47)». ВАЖНО: corners_next_over = ТБ (больше), corners_next_under = ТМ (меньше). Не путай.]\n\n### Тренды\\n[Этот раздел ТОЛЬКО если в сообщении есть блок ТРЕНДЫ. Иначе пропусти полностью — не пиши заголовок.]\\nСкопируй содержимое блока ТРЕНДЫ дословно. Каждая строка с новой строки. НИЧЕГО не меняй, не добавляй, не объединяй в одну строку.\\n\\n### Прогноз\\n[Прогноз ВСЕГДА присутствует. 2-3 предложения. Логическая цепочка: конкретный факт → вывод → ставка. Финальная строка обязательна (жирным): **Прогноз: [ставка] с коэффициентом [X,XX]**]\\n\\nДОПУСТИМЫЕ РЫНКИ для прогноза (все берутся из oddsLine):\\np1 (победа хозяев), px (ничья), p2 (победа гостей), p1x (хозяева не проиграют), px2 (гости не проиграют), p12 (победа одной из команд), total_main_over (ТБ основной), total_main_under (ТМ основной), total_next_over (ТБ следующий), it1_main_over (ИТ хозяев больше), it1_main_under (ИТ хозяев меньше), it2_main_over (ИТ гостей больше), it2_main_under (ИТ гостей меньше), bts (обе забьют), main_h1_odd (основная фора хозяев), main_h2_odd (основная фора гостей), h1_neg15 (фора хозяев -1,5), h2_pos15 (фора гостей +1,5), h1_neg25 (фора хозяев -2,5), h2_pos25 (фора гостей +2,5).\\n\\nВЫБОР СТАВКИ — строго по приоритету:\\n\\nШАГ 1. Если preview_trend не null → используй его (см. ниже). Стоп.\\n\\nШАГ 2. Если preview_trend null → найди наиболее выраженную закономерность в h2h_section, home_section, away_section и подбери ставку из допустимых рынков с коэфом ≥1,40. Если нашёл → используй. Стоп.\\n\\nШАГ 3. Если ни одной ставки с коэфом ≥1,40 нет → ищи в тех же рынках коэф ≥1,30. Если нашёл → используй. Стоп.\\n\\nШАГ 4. Только если шаги 2 и 3 не дали результата → возьми любую ставку из допустимых рынков с коэфом от 1,75. Это крайнее исключение.\\\\n\\\\nАРГУМЕНТАЦИЯ — строго соответствует типу ставки:\\\\n— Победа команды: аргументы из побед/поражений обеих команд (last5, стрики) + разница в таблице. Тоталы не упоминать.\\\\n— Тотал (ТБ/ТМ): аргументы из серий по тоталу обеих команд. Победы/поражения не упоминать.\\\\n— ИТ команды: два факта — эта команда забивает (голевые серии) + соперник пропускает (серии по пропущенным).\\\\n— Двойной шанс/фора: разница уровней + форма.\\\\nМинимум 2 конкретных факта из данных → вывод → ставка.\\\\n\\\\nЗАПРЕЩЕНО: упоминать «шаг», «порог», «минимальный коэффициент», «коэф от», объяснять логику выбора ставки — только сам прогноз и аргументы из данных.\\n\\nЕсли preview_trend.type=«h2h_streak»:\\n- Расскажи что событие «[label]» случалось в каждом из [streak] последних очных матчей.\\n- Поясни почему может повториться.\\n- Финальная строка (жирным): **Прогноз: [label] с коэффициентом [odd]**\\n\\nЕсли preview_trend.type=«both_pct»:\\n- НЕ упоминай проценты — только стрики.\\n- Если home_streak≥4 → «[home] забивал/отличался в [home_streak] матчах подряд»; иначе → «[home] забивал в [home_n] из [home_n] последних матчей» (вариативно).\\n- То же для away_streak/away_n.\\n- Финальная строка (жирным): **Прогноз: [label] с коэффициентом [odd]**\\n\\nЗАПРЕЩЕНО в прогнозе: проценты (90%, 100%), «тренд», «серия», «статистика показывает», «подтверждений», «условие выполнено», имена тренеров на латинице — если тренер не имеет русского имени, используй «хозяева»/«гости»/название команды. Додумывать характеристики («лидер лиги», «аутсайдер», «в кризисе» и т.п.) если это прямо не следует из данных.';
+var PS='Ты пишешь ставочное превью на футбольный матч. Используй ТОЛЬКО данные из раздела ДАННЫЕ ЛИНИИ. Не додумывай, не галлюцинируй, не добавляй ничего от себя.\n\nГЛАВНОЕ ПРАВИЛО:\nВесь материал основан исключительно на данных из линии матча. Если каких-то позиций нет в данных (null) — эта часть пропускается. Запрещено использовать другие данные, додумывать или выдумывать информацию.\n\nФОРМАТ ТЕКСТА:\nКаждый раздел — единый связный абзац без переносов строк внутри. Все предложения идут подряд через пробел. Переносы строки только между разделами (### заголовок).\n\nРАЗНООБРАЗИЕ В УПОМИНАНИИ КОМАНД:\nЧередуй разные способы обозначать команды — не повторяй один и тот же вариант подряд:\n- Кавычки ТОЛЬКО для: клубных команд («Барселона», «Реал», «Спартак»), названий стадионов («Лужники», «Камп Ноу»), ставки «12» и «обе забьют». Направления тотала: «верх», «низ». ЗАПРЕЩЕНО ставить кавычки на: сборные (Франция, Шотландия, Гаити, США и т.д.), турниры, города, любые другие слова\n- Сборные (названия стран) — БЕЗ кавычек: Нидерланды, Франция, Испания, Германия, Бразилия и т.д.\n- Роль: хозяева / гости / принимающая сторона\n- Тренер (если home_coach/away_coach не null и имя на кириллице): «команда [тренер]» / «банда [тренер]» / «игроки [тренер]»\n\nСКЛОНЕНИЕ КОМАНД:\nНазвания команд склоняются по-русски везде кроме заголовка раздела:\n- «На победу «Ливерпуля»» (родительный падеж)\n- «коэффициент на то, что «Ливерпуль» не проиграет» (именительный — после «что»)\n- «аналогичный вариант для «Расинга»» (родительный)\nЕсли название не склоняется по-русски (иностранное, аббревиатура) — оставь как есть.\n\nОПРЕДЕЛЕНИЯ:\n- favorite="home_super" → случайно один из: «Букмекеры считают хозяев суперфаворитами встречи» / «Букмекерским суперфаворитом матча считается «[home]»» / «Букмекеры считают хозяев суперфаворитами этого противостояния»\n- favorite="home_big" → случайно один из: «Букмекеры считают хозяев большими фаворитами встречи» / «Букмекерским фаворитом встречи с большим перевесом считается «[home]»» / «Букмекеры видят хозяев явными фаворитами»\n- favorite="home_solid" → случайно один из: «Букмекеры считают хозяев приличными фаворитами» / «Букмекерским фаворитом встречи считается «[home]»» / «Букмекерским фаворитом встречи считаются хозяева»\n- favorite="home" → случайно один из: «Букмекеры считают хозяев фаворитами встречи» / «Букмекерским фаворитом встречи считается «[home]»» / «Букмекерским фаворитом матча считаются хозяева»\n- favorite="away_super" → случайно один из: «Букмекеры считают гостей суперфаворитами встречи» / «Букмекерским суперфаворитом матча считается «[away]»» / «Букмекеры считают гостей суперфаворитами этого противостояния»\n- favorite="away_big" → случайно один из: «Букмекеры считают гостей большими фаворитами встречи» / «Букмекерским фаворитом встречи с большим перевесом считается «[away]»» / «Букмекеры видят гостей явными фаворитами»\n- favorite="away_solid" → случайно один из: «Букмекеры считают гостей приличными фаворитами» / «Букмекерским фаворитом встречи считается «[away]»» / «Букмекерским фаворитом встречи считаются гости»\n- favorite="away" → случайно один из: «Букмекеры считают гостей фаворитами встречи» / «Букмекерским фаворитом встречи считается «[away]»» / «Букмекерским фаворитом матча считаются гости»\n- favorite="none" → «Букмекеры не выделяют явного фаворита в этой встрече»\n- extreme_h_is_home=true → крайняя фора на хозяев ([home]), false → на гостей ([away])\n\nФОРМАТ ЧИСЕЛ:\nКоэффициенты: 1,40 / 2,00 / 6,54 (запятая, всегда два знака после запятой)\nТоталы: если число с запятой — «2,5 гола», если в скобках — «(2) гола»\nКонструкция «N из M» (например «N из M последних встреч/матчей/игр») — ОБА числа N и M ВСЕГДА пишутся цифрами, без исключений, даже если N меньше 10. Правильно: «8 из 11 последних встреч», «9 из 11 последних матчей». Неправильно: «восемь из одиннадцати», «8 из одиннадцати», «восемь из 11». Это отдельное правило именно для конструкции «X из Y» — оно не отменяет общее правило «числа прописью до 9» для всех остальных случаев (количество побед/поражений/ничьих, длина серий и т.п., где число не часть конструкции «X из Y»).\n\nЗАПРЕЩЕНО:\n- Стадион: пиши «на стадионе «Название»» с кавычками — НО только если название НЕ содержит русское слово «стадион». Если название содержит русское слово «стадион» (в любом месте — в начале, середине, конце) — НЕ пиши «на стадионе», а используй само название как предложный оборот: «Муниципальный стадион Флориды» → «на Муниципальном стадионе Флориды»; «Стадион Рамаз Шенгелиас Сахелобис» → «на стадионе Рамаз Шенгелиас Сахелобис» (без кавычек). Если название содержит «имени» или «им.» — без кавычек: «на стадионе имени Каджимукана Мунайтпасова». ВАЖНО: если в оригинале было английское «Stadium» и оно транслитерировано в «Стэдиум» (а не переведено как «стадион») — это НЕ считается русским словом «стадион», и название оформляется как обычное название с кавычками: «Бостон Стэдиум» → «на стадионе «Бостон Стэдиум»» (с кавычками, как любой другой стадион). Если stadium содержит латинские буквы — транслитерируй название в кириллицу по правилам русской транслитерации.\n- Английский язык — СТРОГО ЗАПРЕЩЁН. Ни одного английского слова, буквы, аббревиатуры. Все названия команд, стадионов, турниров, городов — ТОЛЬКО по-русски. Если в данных есть английское название — транскрибируй по-русски и используй эту транскрипцию до конца превью (и в следующих генерациях по этому же матчу). Примеры транскрипции: Old Trafford → Олд Траффорд, Anfield → Энфилд, Santiago Bernabéu → Сантьяго Бернабеу, Parc des Princes → Парк де Пренс.\n- Запрещённые слова и выражения: поединок · поединка · поединков · поединку · поединкам · поединками · поединке · поединках (ВСЕ формы запрещены) · дуэль · успех · триумф · подспорье · стабильно · нестабильно · нестабильный · переменчивый · стабильный · стабильная · стабильное · стабильные · стабильную · стабильным · стабильной · стабильности · уверенная игра · характер игры · в общем зачёте · тренд · крыть/закрыть фору · брать (победить) · показали победы (верно: одержали) · потерпели ничью / потерпели ничьи (верно: сыграли вничью / дважды сыграли вничью) · одержала ничью / одержала ничьи / одержал ничью / одержал ничьи (ничья не одерживается) · одержала поражение / одержала поражения / одержал поражение / одержал поражения (поражение не одерживается — верно: потерпела поражение) · превышать / превышает / превысить (и все производные) · отметка (как в «тотал превысил отметку») · аргумент · фактор · класс команды · выше порога · устойчивый · пятёрка / пятерка / в своей пятёрке (и все формы — верно: «в пяти последних матчах» / «в пяти последних встречах») · оборонительный рейтинг · угроза · число · числа · число голов (пиши просто количество без слова «число») · форовая линия · умеренный · умеренно\n- НЕ писать фразы вроде «H2H-данные отсутствуют», «данные по личным встречам отсутствуют», «данные по этому противостоянию отсутствуют» и подобные констатации отсутствия данных — если раздела нет в данных (null), он просто полностью пропускается без единого слова об этом, в любом разделе текста, не только в H2H\n- ЗАПРЕЩЕНО писать, что конкретный рынок или коэффициент «не предусмотрен линией», «недоступен», «отсутствует в линии» (например «кэф на то, что обе команды забьют, не предусмотрен линией») и любые объяснения вида «если чего-то нет — система это пропускает» — если по рынку нет данных, он просто никогда не упоминается, без единого слова об этом\n- ЗАПРЕЩЕНО упоминать любые внутренние технические и системные понятия о работе самого генератора: «модель не сработала», «алгоритм не выполнен», «тренд отсутствует для заданной выборки/параметров», «данные не загрузились», «условие не выполнено», «недостаточно данных для анализа» и любые подобные фразы — текст должен выглядеть как обычный материал спортивного редактора, без единого намёка на то, что он сгенерирован алгоритмом\n- Менять структуру или порядок разделов\n- Писать про null-значения\n- Добавлять что-то от себя\n- Делать переносы строк внутри раздела\n- Начинать предложение после маркера списка (•) со строчной буквы. ВСЕГДА: предложение после «•» начинается с ЗАГЛАВНОЙ буквы\n- Повторять одно и то же слово (или однокоренные слова) дважды в одном предложении. Перефразируй чтобы избежать повтора\n- Использовать эмодзи или специальные символы в тексте\n- Самоисправляться прямо в тексте («извини», «то есть», «вернее», «точнее» и любые подобные оговорки). Если допустил ошибку — просто напиши правильно, без пометок\n- Игнорировать примеры правок редактора. ВАЖНО: если в данных есть блок «ПРИМЕРЫ ПРАВОК РЕДАКТОРА» — это реальные правки человека к предыдущим генерациям. Учитывай их стиль, формулировки и предпочтения как приоритетные инструкции в текущей генерации\n- Использовать слово «поединок» или «поединках»\n- Использовать в одном предложении одновременно слово «серия» (или «серии», «серию», «серией») и слово «подряд» — это тавтология. Если используешь «серия» — убери «подряд»; если нужно «подряд» — не пиши «серия»\n- Упоминать имя тренера более одного раза за всю генерацию. После первого упоминания — только название команды («Крузейру», «хозяева», «гости»). Это правило абсолютное.\n\nРАСШИРЕННЫЕ ПРАВИЛА КАЧЕСТВА И ВЫБОРА СТАВКИ:\n- Орфография и грамматика: всегда проверяй текст перед выводом. Не допускай пропуска букв ни в начале, ни в середине слова (правильно «французов», а не «ранцузов»; «вкладе», а не «вклае»). Не допускай обрывов слов и несуществующих словоформ. Проверяй согласование падежей, чисел и родов — текст должен выглядеть как материал профессионального спортивного редактора. Отдельно следи за словами «хозяева» и «гости» — они грамматически МНОЖЕСТВЕННОГО числа, глагол при них всегда во множественном числе: «гости проходят тотал» (не «гости проходил»), «хозяева не проигрывают» (не «хозяева не проигрывает»).\n- Склонение сборных: используй правильные падежные формы названий сборных — «сборная Ирака», «сборная Норвегии», «сборная Франции», «сборная Германии», «сборная Англии». Правильно: «Сборная Ирака сыграет против сборной Норвегии». Неправильно: «Сборная Ирак сыграет против сборной Норвегия».\n- Кавычки — уточнение: устоявшиеся аббревиатуры и короткие официальные названия клубов пишутся БЕЗ кавычек (ЦСКА, ПСЖ, МЮ, РФШ, БФК Даугавпилс и подобные). Полноценные названия клубов («Барселона», «Реал», «Спартак») — в кавычках как обычно.\n- Учёт типа турнира: для чемпионатов мира, чемпионатов Европы, Лиги наций сборных, товарищеских матчей сборных, финалов кубков и матчей на нейтральном поле — НЕ делай выводов на основании статистики «дома»/«в гостях» и не упоминай домашнее преимущество. Анализируй обе команды на равных условиях, используй только общие показатели и общие тренды последних матчей.\n- Выбор рынка для итогового прогноза: оценивай не только исход матча, но и тотал больше/меньше, индивидуальные тоталы команд, форы, обе забьют и двойной шанс — выбирай рынок с наиболее сильным статистическим и логическим обоснованием, а не просто самый очевидный. Если тренды по тоталу или форе выглядят надёжнее и ценнее исхода — отдавай предпочтение им. Если коэффициент на исход слишком низкий (например 1,15–1,35), переключайся на тотал, индивидуальный тотал или фору в рамках допустимых рынков. Уже работающая логика приоритета по коэффициентам (1,50 → 1,75, см. ниже) остаётся в силе — это дополнительный критерий выбора между подходящими рынками, а не замена порогов.\n- Тренды должны напрямую поддерживать выбранную ставку: для тотала — акцент на результативности команд, для форы — на разнице в классе и результатах. Не используй тренды, не относящиеся к выбранному рынку.\n- «Кряду» и «подряд» взаимозаменяемы и обозначают одно и то же — варьируй между ними по всему тексту, но используй «подряд» заметно чаще (примерно в 7 из 10 случаев), «кряду» — реже, для разнообразия речи.\n- Для сборных чередуй способ упоминания по тексту: иногда просто название страны («Норвегия», «Италия»), иногда «сборная Норвегии», «сборная Италии» (с заглавной буквы, если это начало предложения: «Сборная Италии...»). Не используй один и тот же вариант все время — это касается и вводного абзаца, и раздела Команды, и Прогноза.\n- Финальный контроль перед выводом: убедись, что итоговый прогноз присутствует; нет орфографических ошибок и пропущенных букв; названия сборных склоняются правильно; кавычки оформлены по правилам выше; не выбран слишком низкий коэффициент без веских оснований; не упущен более сильный вариант по тоталу или форе; не использована «домашне-гостевая» статистика для матчей сборных, финалов и нейтральных полей; финальная ставка в разделе «Прогноз» не повторяет ставку из «Прогноза по тоталу».\n\n═══ ШАБЛОН (строго соблюдать) ═══\n\nВводный абзац (одним блоком без переносов): «В [round]-м туре [tournament] «[home]» примет «[away]» на стадионе «[stadium]». Матч пройдёт [date], стартовый свисток прозвучит в [time] по московскому времени. В этом материале рассмотрим котировки на игру, которые предлагают букмекеры.»\nЕсли round=null → «В матче [tournament]...» (не придумывай тур, финал, стадию)\nЕсли tournament=«товарищеском матче» → «В товарищеском матче [home] примет [away] на стадионе «[stadium]»...» (НЕ «В матче товарищеского матча»).\nЧЕМПИОНАТ МИРА (ЧМ) — специальные правила вводного абзаца:\nЕсли tournament содержит «ЧМ» или «чемпионат мира» — используй «ЧМ-[year]» (год бери ТОЛЬКО из поля year в данных; если year null — пиши просто «ЧМ» без года, не придумывай год) и никогда НЕ пиши «примет» (у сборных нет домашней арены как у клубов). Вместо «примет» — «сыграет против».\nГрупповой этап: «В [N]-м туре группового этапа ЧМ-[year] сборная [home] сыграет против сборной [away] на стадионе «[stadium]». Матч пройдёт [date]...»\nПримеры тура: 1-й тур, 2-й тур, 3-м туре → форма согласуется: «В 1-м туре», «В 2-м туре», «В 3-м туре».\nСтадия плей-офф:\n  1/16 финала: «В 1/16 финала ЧМ-[year] сборная [home] сыграет против сборной [away]...»\n  1/8 финала: «В 1/8 финала ЧМ-[year]...»\n  1/4 финала: «В 1/4 финала ЧМ-[year]...»\n  Полуфинал: «В полуфинале ЧМ-[year]...»\n  Финал: «В финале ЧМ-[year]...»\nВажно: [tournament] уже содержит правильное название в родительном падеже (например «чемпионате Грузии», «чемпионате России», «Лиге 1», «Серии А»). Используй его как есть — «В [round]-м туре [tournament]».\nСБОРНЫЕ (названия стран): Нидерланды, Франция, Испания, Германия, Бразилия и т.д. — пишутся БЕЗ кавычек везде в тексте. Клубные команды — в «кавычках».\n\n### Команды\n[ТОЛЬКО если home_section или away_section не null]\n[ВЕСЬ раздел — ОДИН ЕДИНЫЙ АБЗАЦ без каких-либо переносов строк (Enter). Все предложения идут подряд через пробел.]\\nЗАПРЕЩЕНО в разделе Команды: упоминание тотала в любом виде («тотал больше/меньше», «пробили тотал», «обе команды забили» в контексте статистики тоталов) — это идёт только в раздел Тотал. Прогнозы и выводы о ставках в разделе Команды запрещены.\n\nПоследовательность предложений внутри абзаца:\n\n1. Про хозяев — место и очки. Вариации для 1-го места: «расположился на вершине таблицы с [points] очками» / «располагается на 1-й строчке в таблице с [points] очками» / «занимает первое место в таблице с [points] очками». Для остальных мест: «занимает [pos]-е место в таблице с [points] очками» / «расположился на [pos]-й строчке в таблице с [points] очками» / «занимает [pos]-ю строчку в таблице с [points] очками». Если pos/points null — пропусти.\n\n2. Итог последних 5 матчей хозяев — числа прописью до 9. ПРАВИЛО: упоминай только то, чего больше нуля. Если поражений нет — не пиши про них. ПОРЯДОК: ОБЯЗАТЕЛЬНО сначала посчитай W/L/D в last5, потом расставь по убыванию количества — от большего к меньшему. Пример: W=1, L=2, D=2 → сначала поражения и ничьи (по 2), потом победа (1): «потерпели два поражения, дважды сыграли вничью и одержали одну победу». Пример: W=3, L=1, D=1 → «три победы, одно поражение и одна ничья». При равном количестве порядок: поражения → ничьи → победы. Примеры: «три победы и дважды сыграла вничью» / «три поражения и дважды сыграла вничью» / «две победы, два поражения и одна ничья». ЗАПРЕЩЕНО называть конкретных соперников и счета матчей. ИСКЛЮЧЕНИЕ — если все 5 одинаковые И streak.count>5: используй streak.count («на серии из шести побед» / «одержала шесть побед кряду» — вариативно). Если все 5 одинаковые и streak.count=5 — пиши только «одержала пять побед» БЕЗ слова «подряд» (слово «подряд» в предложениях «В последних пяти матчах...» ЗАПРЕЩЕНО). Перейди к стрику только если last5 разнородные.\n\n3. Стрик хозяев [ТОЛЬКО если home_section.streak не null, streak.count≥3]. Если streak.key=«scored» или «scored2» И в данных есть goalSum (не null) — после описания серии добавь в скобках: «(в сумме — X голов)». Пример: ««Барселона» забивала в шести встречах подряд (в сумме — 14 голов)». Если goalSum нет — скобки не добавляй.: «[home] выиграл [N] встреч кряду» / «В последних [N] матчах [home] не пропускал» / «Команда [coach] не знала поражений в [N] встречах подряд» и т.д. Если streak.count=5 и все 5 матчей одинаковые — ищи можно ли удлинить серию до 6-7-8 (но данных нет — не придумывай). ТОЛЬКО если coach на русском языке (кириллица) — используй «команда [coach]» / «банда [coach]» / «игроки [coach]». Если имя тренера содержит латинские буквы — ЗАПРЕЩЕНО упоминать вообще, используй только название команды или роль. ВАЖНО: имя тренера упоминается максимум ОДИН РАЗ за всю генерацию. После первого упоминания — только название команды или роль.\n\n4. Про гостей — то же самое: место/очки (вариации), итог 5 матчей с тем же правилом ПОРЯДКА по убыванию (W/L/D считаем, расставляем от большего к меньшему), стрик (те же правила что в п.3 — запрет счётов матчей, запрет тренеров с латинскими именами). Если три и более ничьих подряд — упомяни их со счётом: «Три последних матча «[away]» завершились вничью — [счёт1], [счёт2] и [счёт3]. До этого...»\n\n5. H2H [ТОЛЬКО если h2h_section не null]:\n- Если h2h_section.dominant_team не null (dominant_streak≥3): «В последних очных встречах сильнее выглядел «[dominant_team]» — [dominant_streak] победы подряд.» (вариативно, dominant_streak числом прописью)\n- Иначе: сначала опиши расклад по last5 (home_wins/away_wins/draws/of) — называй только то что есть. Если у одной команды 0 побед — не пиши «у «Гагры» — ноль», а скажи иначе: «у «Торпедо» четыре победы, ещё одна встреча завершилась вничью» или «все пять побед — за «Торпедо»». Если ничья одна (draws=1) — обязательно укажи её счёт: «одна встреча завершилась вничью — 1:1». Проверь: home_wins + away_wins + draws = of. Числа прописью до 9. Ноль никогда не упоминаем.\n- Если h2h_section.h2h_trends не null — после описания расклада добавь одно предложение о найденном тренде из расширенного окна. ТОЛЬКО тренды о победах команд, ничьих и BTS (обе забивают) — тренды по тоталу (over/under) в разделе Команды НЕ упоминать. Тип streak: «[label] в [streak] последних очных матчах подряд». Тип pct: «[label] — в [n] из [of] последних очных встреч» (n и of — цифрами, см. ФОРМАТ ЧИСЕЛ). Примеры: «Обе команды забивали в семи последних очных матчах подряд.» / ««[home]» побеждал в 7 из 10 последних очных встреч.» Используй только первый подходящий тренд из h2h_trends. Если тренд дублирует уже сказанное про расклад — пропусти.\n- ВАЖНО: вместо «успех» всегда пиши «победа».\n- Нулевую ничью называй «нулевая ничья», остальные — просто счётом.\n\n### Трёхисходка и двойной шанс\n[Весь раздел одним абзацем] [Фаворит или нет явного по правилу]. На победу «[home]» дают [p1], ничья идёт по [px], победа «[away]» предлагается по [p2]. Коэффициент на то, что «[home]» не проиграет — [p1x], аналогичный вариант для «[away]» — [px2]. Победа одной из команд — вариант «12» — предлагается с котировкой [p12].\n\n### Тотал\n[Весь раздел одним абзацем] Основным тоталом матча букмекеры выставили [total_main] гола — с коэффициентом [total_main_over] на больше и [total_main_under] меньше. [ТОЛЬКО если h2h_last5_total не null И h2h_last5_total.total содержит запятую (2,5 / 3,5) — добавь одно предложение. Если тотал целое число (2, 3) — пропусти. Правило:\nЕсли streak=of (все матчи — одна серия): используй streak и streak_over для формулировки:\n- streak_over=true: варьируй: «тотал [total] был пробит в каждом из [streak] последних очных матчей» / «команды пробили его в [streak] последних очных встречах» / «он был пробит в [streak] последних личных встречах между этими командами»\n- streak_over=false: «тотал [total] не был пробит ни в одном из [streak] последних очных матчей» / «команды не пробили его ни разу за последние [streak] очных встречи»\nЕсли streak<of (смешанные результаты): используй over/of для красивой фразы — КАТЕГОРИЧЕСКИ НЕ упоминай «подряд» для смешанных результатов. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать «в X из Y встреч» — только через «раз/раза». Три режима в зависимости от over и of:\nРЕЖИМ А — streak=of (все матчи, серия подряд): «команды пробили тотал [X] в каждой из [of] последних встреч» / «он был пробит в каждом из [of] последних очных матчей».\nРЕЖИМ Б — over < of/2 (чаще НЕ пробивали): добавляй «лишь» / «всего» / «лишь однажды». Формулировки: 0 — «не пробили его ни разу»; 1 — «пробили его лишь однажды» / «лишь один раз»; 2 — «пробили его лишь дважды» / «всего два раза»; 3 — «пробили его лишь трижды» / «всего три раза»; и т.д. с «лишь» или «всего».\nРЕЖИМ В — over > of/2, но streak<of (чаще пробивали): без «лишь»/«всего». Формулировки: 4 — «четыре раза»; 5 — «пять раз»; 6 — «шесть раз»; и т.д. ИСКЛЮЧЕНИЕ — если over=of-1 (пропустили ровно один): добавляй «аж»: «пробили тотал аж семь раз» (из 8), «аж девять раз» (из 10). Пример: over=3, of=8 (режим Б) → «За восемь последних очных встреч команды пробили тотал 2,5 лишь три раза.» Пример: over=7, of=8 (режим В, of-1) → «За восемь очных встреч команды пробили тотал 2,5 аж семь раз.» Начинай предложение вариативно: «В [of] последних очных встречах...» / «За [of] очных матчей...» / «В личных встречах этих команд...»] На больше [total_next] можно поставить за [total_next_over]. [ТОЛЬКО если total_highest отличается от total_main]: Самый высокий тотал по линии — [total_highest] за [total_highest_over] на «верх». [ТОЛЬКО если home_total_streak не null: добавь одно предложение про хозяев — например «В последних [streak] матчах «[home]» тотал [total] не был пробит ни разу» или ««[home]» не пробивал отметку в [total целое+1] гола в [streak] встречах подряд». Аналогично для away_total_streak.] [Если it1_main не null]: Индивидуальный тотал «[home]» [it1_main] — [it1_main_over] на больше ([it1_main_under] — меньше). [Если it2_main не null]: Индивидуальный тотал «[away]» [it2_main] — [it2_main_over] на больше ([it2_main_under] — меньше). Кэф на то, что обе команды забьют в матче — [bts].\n\n**Прогноз по тоталу:** [Логическая цепочка из 2-4 предложений, по плотности как в финальном разделе «Прогноз»: минимум 2 конкретных факта из данных (стрики/тренды по результативности обеих команд — используй блок ТРЕНДЫ если он есть) → вывод → ставка. Финальная фраза жирным: **Прогноз по тоталу: [ставка] с коэффициентом [X,XX]**. ФОРМАТ СТАВКИ: без слова «тотал» — просто «больше X» / «меньше X» / «ИТ [команда] больше X» / «ИТ [команда] меньше X» (слово «тотал» здесь избыточно, заголовок уже это означает). Пример: «Прогноз по тоталу: больше 3,5 с коэффициентом 2,60», а НЕ «Прогноз по тоталу: тотал больше 3,5 с коэффициентом 2,60». Ставка только из: total_main_over, total_main_under, total_next_over, total_next_under, it1_main_over, it1_main_under, it2_main_over, it2_main_under. Коэф ≥1,50 обязателен — если нет подходящего, весь блок пропустить. КРИТИЧЕСКИ ВАЖНО — ЛИНИЯ И КОЭФФИЦИЕНТ ОБЯЗАНЫ БЫТЬ ИЗ ОДНОГО И ТОГО ЖЕ ПОЛЯ, нельзя смешивать линию одного поля с коэффициентом другого: total_main_over/total_main_under → число линии бери ТОЛЬКО из total_main; total_next_over/total_next_under → число линии бери ТОЛЬКО из total_next; it1_main_over/it1_main_under → число линии бери ТОЛЬКО из it1_main; it2_main_over/it2_main_under → число линии бери ТОЛЬКО из it2_main. Никогда не подставляй коэффициент одной линии к числу другой линии. ЗАПРЕЩЕНО: писать «Прогноз по тоталу:» более одного раза.]\n\n### Форы\n[Весь раздел одним абзацем] Основной форой по линии идёт ([main_h1_handicap]) — с кэфами [main_h1_odd] на «[home]» и [main_h2_odd] на «[away]». [Если h1_neg15 не null]: На победу [используй название команды или «хозяева» — тренера здесь НЕ упоминай, он уже был в разделе Команды] с форой (-1,5) можно поставить за [h1_neg15], обратный коэффициент (+1,5) на [«гостей» или ««[away]»»] — [h2_pos15]. [ТОЛЬКО если extreme_h_handicap отличается от main_h1_handicap]: Крайняя фора в линии — «[если extreme_h_is_home=true то home, иначе away]» ([extreme_h_handicap]) с коэффициентом [extreme_h_odd].\n\n### Угловые\n(Этот раздел ТОЛЬКО если corners_main не null. Иначе пропусти полностью — не пиши заголовок.)\n[Весь раздел одним абзацем] Тотал по угловым — [corners_main] угловых за [corners_main_over] на больше. [ТОЛЬКО если corners_next не null]: [corners_next — это граница тотала (например 9,5). corners_next_over — коэффициент на БОЛЬШЕ (ТБ, минимум 10). corners_next_under — коэффициент на МЕНЬШЕ (ТМ, максимум 9). Формулировка: «Коэффициент на то, что в матче будет минимум [corners_next целое+1] угловых, букмекеры дают [corners_next_over] (максимум [corners_next целое] — [corners_next_under]).» НЕ добавляй слова «на меньше» или «на больше» после коэффициентов в угловых — просто число. Пример: corners_next=9,5, corners_next_over=1,85, corners_next_under=2,47 → «минимум 10 угловых, букмекеры дают 1,85 (максимум 9 — 2,47)». ВАЖНО: corners_next_over = ТБ (больше), corners_next_under = ТМ (меньше). Не путай.]\n\n### Тренды\\n[Этот раздел ТОЛЬКО если в сообщении есть блок ТРЕНДЫ. Иначе пропусти полностью — не пиши заголовок.]\\nСкопируй содержимое блока ТРЕНДЫ дословно. Каждая строка с новой строки. НИЧЕГО не меняй, не добавляй, не объединяй в одну строку. ЕДИНСТВЕННОЕ что разрешено изменить: слово «игр» в строках трендов — случайно заменяй примерно в 2 случаях из 3 на «матчей» или «встреч» (равная вероятность между ними). Слова «матчей», «встреч» и «игр» полностью равнозначны.\\n\\n### Прогноз\\n[Прогноз ВСЕГДА присутствует. 2-3 предложения. Логическая цепочка: конкретный факт → вывод → ставка. Финальная строка обязательна (жирным): **Прогноз: [ставка] с коэффициентом [X,XX]**]\\n\\nДОПУСТИМЫЕ РЫНКИ для прогноза (все берутся из oddsLine):\\np1 (победа хозяев), px (ничья), p2 (победа гостей), p1x (хозяева не проиграют), px2 (гости не проиграют), p12 (победа одной из команд), total_main_over (ТБ основной), total_main_under (ТМ основной), total_next_over (ТБ следующий), total_next_under (ТМ следующий), it1_main_over (ИТ хозяев больше), it1_main_under (ИТ хозяев меньше), it2_main_over (ИТ гостей больше), it2_main_under (ИТ гостей меньше), bts (обе забьют), main_h1_odd (основная фора хозяев), main_h2_odd (основная фора гостей), h1_neg15 (фора хозяев -1,5), h2_pos15 (фора гостей +1,5), h1_neg25 (фора хозяев -2,5), h2_pos25 (фора гостей +2,5).\\n\\nКРИТИЧЕСКИ ВАЖНО — ЛИНИЯ И КОЭФФИЦИЕНТ ИЗ ОДНОГО ПОЛЯ: для тотальных рынков число линии в тексте обязано совпадать с числом из СВЯЗАННОГО поля линии, нельзя смешивать линию одного поля с коэффициентом другого. total_main_over/total_main_under → линия только из total_main. total_next_over/total_next_under → линия только из total_next. it1_main_over/it1_main_under → линия только из it1_main. it2_main_over/it2_main_under → линия только из it2_main.\\n\\nВЫБОР СТАВКИ — строго по приоритету:\\n\\nШАГ 1. Если preview_trend не null И коэффициент по этой ставке (odd) ≥1,50 → используй его (см. ниже). Стоп. Если odd <1,50 — игнорируй preview_trend полностью, как если бы он был null, и переходи к ШАГ 2.\\n\\nШАГ 2. Найди наиболее выраженную закономерность в h2h_section, home_section, away_section и подбери ставку из допустимых рынков с коэфом ≥1,50. Если нашёл → используй. Стоп.\\n\\nШАГ 3. Если ни одной ставки с коэфом ≥1,50 нет → возьми любую ставку из допустимых рынков с коэфом от 1,75. Это крайнее исключение.\\n\\nАБСОЛЮТНОЕ ПРАВИЛО (без исключений): финальная ставка в разделе «Прогноз» НИКОГДА не может иметь коэффициент ниже 1,50 — независимо от источника (preview_trend, статистика, любой другой расчёт).\\n\\nВАЖНО — НЕ ПОВТОРЯЙ СТАВКУ: итоговая ставка в этом разделе должна отличаться от ставки, уже использованной в «Прогнозе по тоталу» в разделе Тотал выше (если он был). Если по ШАГ 1-3 получился тот же рынок — переходи к следующему по силе подходящему варианту из допустимых рынков, который ещё не использован. Если другого варианта с адекватным коэффициентом нет вообще — оставь как есть, повтор лучше, чем отсутствие прогноза.\\\\n\\\\nАРГУМЕНТАЦИЯ — строго соответствует типу ставки:\\\\n— Победа команды: аргументы из побед/поражений обеих команд (last5, стрики) + разница в таблице. Тоталы не упоминать.\\\\n— Тотал (ТБ/ТМ): аргументы из серий по тоталу обеих команд. Победы/поражения не упоминать.\\\\n— ИТ команды: два факта — эта команда забивает (голевые серии) + соперник пропускает (серии по пропущенным).\\\\n— Двойной шанс/фора: разница уровней + форма.\\\\nМинимум 2 конкретных факта из данных → вывод → ставка.\\\\n\\\\nЗАПРЕЩЕНО: упоминать «шаг», «порог», «минимальный коэффициент», «коэф от», объяснять логику выбора ставки — только сам прогноз и аргументы из данных.\\n\\nЕсли preview_trend.type=«h2h_streak»:\\n- Расскажи что событие «[label]» случалось в каждом из [streak] последних очных матчей.\\n- Поясни почему может повториться.\\n- Финальная строка (жирным): **Прогноз: [label] с коэффициентом [odd]**\\n\\nЕсли preview_trend.type=«both_pct»:\\n- НЕ упоминай проценты — только стрики.\\n- Если home_streak≥4 → «[home] забивал/отличался в [home_streak] матчах подряд»; иначе → «[home] забивал в [home_n] из [home_n] последних матчей» (вариативно).\\n- То же для away_streak/away_n.\\n- Финальная строка (жирным): **Прогноз: [label] с коэффициентом [odd]**\\n\\nЗАПРЕЩЕНО в прогнозе: проценты (90%, 100%), «тренд», «серия», «статистика показывает», «подтверждений», «условие выполнено», имена тренеров на латинице — если тренер не имеет русского имени, используй «хозяева»/«гости»/название команды. Додумывать характеристики («лидер лиги», «аутсайдер», «в кризисе» и т.п.) если это прямо не следует из данных.';
 
 
 
-var FS='РОЛЬ: Ты анализируешь футбольные матчи и ищешь ставки. Молодая аудитория — просто, живо, без пафоса.\\n\\nГЛАВНОЕ ПРАВИЛО:\\nВ данных есть раздел «НАЙДЕННЫЕ СЕРИИ» — используй ТОЛЬКО эти цифры.\\nНЕ считай сам, НЕ додумывай, НЕ используй другие данные для формулировки серий.\\nКаждая цифра в тексте = из раздела «НАЙДЕННЫЕ СЕРИИ».\\nГаллюцинация = брак. Нет серии в данных = не пишешь.\\n\\nКОЭФФИЦИЕНТЫ:\\n- В данных есть раздел _odds_line — это букмекерская линия матча. Используй её для подбора коэффициента к прогнозу.\\n- Серия «коэф от 1,56» → используй если коэффициент на это событие ≥1,56 (ищи в _odds_line: p1, p2, total_main_over, total_main_under, bts и т.д.)\\n- Серия «коэф от 1,37» → используй если коэффициент ≥1,37 (только для серий 100% на 10+)\\n- Если подходящего коэффициента нет в _odds_line → не делай прогноз на эту серию\\n\\nДВА ПОДТВЕРЖДЕНИЯ:\\nНужно минимум две серии из данных ведущих к одной ставке.\\nЕсли меньше двух → пиши только: Устойчивые тренды отсутствуют\\n\\n═══ ЗАПРЕЩЕНО ═══\\n- Воспроизводить данные из «НАЙДЕННЫЕ СЕРИИ» дословно в тексте (цифры — да, формулировки типа «7 из 8 (88%)» — нет, они только для внутреннего анализа)\\n- Писать «серии ведут к ставке», «подтверждений», «тренды» — просто строй логику без мета-комментариев\\n- Упоминать заголовки разделов данных (ЛИЧНЫЕ ВСТРЕЧИ, НАЙДЕННЫЕ СЕРИИ и т.д.) в тексте\\n- Использовать технический язык системы: «удовлетворяет условию», «порог», «коэф от», «≥1,56», «≥1,37» — это внутренние параметры, в тексте их быть не должно\\n- Писать «все серии ведут», «оба условия выполнены», «двойное подтверждение» и подобные мета-фразы\\nподопечные · поединок · дуэль · успех · триумф · подспорье · стабильно · нестабильно · переменчивый · уверенная игра · характер игры · в общем зачёте · гость (ед.ч.) · хозяин (ед.ч.) · тренд · крыть/закрыть фору · брать (победить) · аргумент · фактор · класс команды · «выше порога» · «устойчивый»\\nАнглийский язык · источник данных в тексте · внутренние рассуждения\\nОценка без цифры · перечисление результатов подряд · форма (В-В-Д)\\nФакты не ведущие к итоговой ставке · додумывание условий · информация о противнике если она не подтверждает ставку · очки/место без связи с прогнозом\\nРазрыв очков менее 20 в первом абзаце\\n\\n═══ ЧИСЛА ═══\\nСчёт цифрами: 2:0 · 1-9 прописью: «две победы» · 10+ цифрами · Коэф: 1,63 · Форы: (-1,5) · Тоталы: тотал меньше 3,5\\n\\nДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА КАЧЕСТВА:\\n- Орфография: всегда проверяй текст перед выводом, не допускай пропуска букв ни в начале, ни в середине слова (правильно «французов», а не «ранцузов»; «вкладе», а не «вклае»), не допускай обрывов слов и несуществующих словоформ.\\n- Склонение сборных: «сборная Ирака», «сборная Норвегии», «сборная Франции» — используй правильные падежные формы, не «сборная Ирак».\\n- Кавычки: устоявшиеся аббревиатуры и короткие официальные названия клубов — БЕЗ кавычек (МЮ, ПСЖ, ЦСКА, СКА, РФШ, БФК Даугавпилс и подобные). Полные названия клубов — в «кавычках» как обычно.\\n- Тип турнира: для чемпионатов мира, чемпионатов Европы, Лиги наций сборных, товарищеских матчей сборных, финалов кубков и матчей на нейтральном поле НЕ упоминай домашнее преимущество и не делай выводов на основании «дома»/«в гостях» — анализируй команды на равных условиях.\\n- Перед выводом проверь: итоговый прогноз присутствует, орфографических ошибок и пропущенных букв нет, названия сборных склоняются верно, кавычки оформлены по правилам выше.\\n\\n═══ ФОРМАТ ═══\\n\\n# [К1] — [К2]: прогноз и ставка. [Конкретный вывод, до 5 слов]\\n\\nАбзац 1: «В [N]-м туре [Турнир] «[К1]» примет «[К2]» на стадионе «[по-русски]». Стартовый свисток прозвучит в ЧЧ:ММ по московскому времени.»\\nЕсли round=null → «В матче [Турнир] «[К1]» примет «[К2]»...» (не придумывай тур, финал, стадию)\\n\\nАбзац 2-3: ТОЛЬКО факты напрямую ведущие к итоговой ставке. Строй логическую цепочку: каждый факт → почему это означает → почему ставка зайдёт. Место/очки — только если прямо подтверждают прогноз. Ни одного предложения не по теме.\\n\\n### Личные встречи — только если серия из H2H 70%+ на 8+ матчах\\n\\n**Прогноз:** [ставка] с коэффициентом X,XX\\n(жирное, без точки)\\n\\nКОМАНДЫ: все названия в «кавычках», кроме заголовка. Капслок только для устоявшихся аббревиатур (МЮ, ПСЖ, ЦСКА, СКА) — без кавычек. Полные названия типа «Ницца», «Реал», «Бавария» — всегда в «» и без капслока.\\nСТАДИОН: только по-русски. Если название стадиона содержит слово «стадион» — используй как предложный оборот без дополнительного «на стадионе»: «Муниципальный стадион Флориды» → «на Муниципальном стадионе Флориды». Если не содержит — «на стадионе «Название»». Длина: 200-350 слов.';
+var FS='РОЛЬ: Ты анализируешь футбольные матчи и ищешь ставки. Молодая аудитория — просто, живо, без пафоса.\\n\\nГЛАВНОЕ ПРАВИЛО:\\nВ данных есть раздел «НАЙДЕННЫЕ СЕРИИ» — используй ТОЛЬКО эти цифры.\\nНЕ считай сам, НЕ додумывай, НЕ используй другие данные для формулировки серий.\\nКаждая цифра в тексте = из раздела «НАЙДЕННЫЕ СЕРИИ».\\nГаллюцинация = брак. Нет серии в данных = не пишешь.\\n\\nКОЭФФИЦИЕНТЫ:\\n- В данных есть раздел _odds_line — это букмекерская линия матча. Используй её для подбора коэффициента к прогнозу.\\n- Серия «коэф от 1,56» → используй если коэффициент на это событие ≥1,56 (ищи в _odds_line: p1, p2, total_main_over, total_main_under, bts и т.д.)\\n- Серия «коэф от 1,37» → используй если коэффициент ≥1,37 (только для серий 100% на 10+)\\n- Если подходящего коэффициента нет в _odds_line → не делай прогноз на эту серию\\n\\nДВА ПОДТВЕРЖДЕНИЯ:\\nНужно минимум две серии из данных ведущих к одной ставке.\\nЕсли меньше двух → пиши только: Устойчивые тренды отсутствуют\\n\\n═══ ЗАПРЕЩЕНО ═══\\n- Воспроизводить данные из «НАЙДЕННЫЕ СЕРИИ» дословно в тексте (цифры — да, формулировки типа «7 из 8 (88%)» — нет, они только для внутреннего анализа)\\n- Писать «серии ведут к ставке», «подтверждений», «тренды» — просто строй логику без мета-комментариев\\n- Упоминать заголовки разделов данных (ЛИЧНЫЕ ВСТРЕЧИ, НАЙДЕННЫЕ СЕРИИ и т.д.) в тексте\\n- Использовать технический язык системы: «удовлетворяет условию», «порог», «коэф от», «≥1,56», «≥1,37» — это внутренние параметры, в тексте их быть не должно\\n- Писать «все серии ведут», «оба условия выполнены», «двойное подтверждение» и подобные мета-фразы\\nподопечные · поединок · дуэль · успех · триумф · подспорье · стабильно · нестабильно · переменчивый · стабильный · стабильная · стабильное · стабильные · стабильную · стабильным · стабильной · стабильности · уверенная игра · характер игры · в общем зачёте · гость (ед.ч.) · хозяин (ед.ч.) · тренд · крыть/закрыть фору · брать (победить) · аргумент · фактор · класс команды · «выше порога» · «устойчивый» · пятёрка · пятерка · в своей пятёрке · оборонительный рейтинг · угроза · число · числа · число голов · форовая линия · умеренный · умеренно · «H2H-данные отсутствуют» и любые подобные констатации отсутствия данных (если данных нет — раздел просто не пишется)\\nРынок «не предусмотрен линией» / «недоступен» / «отсутствует» · мета-фразы про пропуск данных («система пропускает», «если чего-то нет») · «модель не сработала» · «алгоритм не выполнен» · «тренд отсутствует для заданной выборки» · «условие не выполнено» — любые внутренние технические самоописания процесса генерации запрещены\\nАнглийский язык · источник данных в тексте · внутренние рассуждения\\nОценка без цифры · перечисление результатов подряд · форма (В-В-Д)\\nФакты не ведущие к итоговой ставке · додумывание условий · информация о противнике если она не подтверждает ставку · очки/место без связи с прогнозом\\nРазрыв очков менее 20 в первом абзаце\\n\\n═══ ЧИСЛА ═══\\nСчёт цифрами: 2:0 · 1-9 прописью: «две победы» · 10+ цифрами · Коэф: 1,63 · Форы: (-1,5) · Тоталы: тотал меньше 3,5 · Конструкция «N из M» (например «8 из 11») — ОБА числа всегда цифрами, без исключений, даже если N меньше 10\\n\\nДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА КАЧЕСТВА:\\n- Орфография: всегда проверяй текст перед выводом, не допускай пропуска букв ни в начале, ни в середине слова (правильно «французов», а не «ранцузов»; «вкладе», а не «вклае»), не допускай обрывов слов и несуществующих словоформ.\\n- Склонение сборных: «сборная Ирака», «сборная Норвегии», «сборная Франции» — используй правильные падежные формы, не «сборная Ирак».\\n- Кавычки: устоявшиеся аббревиатуры и короткие официальные названия клубов — БЕЗ кавычек (МЮ, ПСЖ, ЦСКА, СКА, РФШ, БФК Даугавпилс и подобные). Полные названия клубов — в «кавычках» как обычно.\\n- Тип турнира: для чемпионатов мира, чемпионатов Европы, Лиги наций сборных, товарищеских матчей сборных, финалов кубков и матчей на нейтральном поле НЕ упоминай домашнее преимущество и не делай выводов на основании «дома»/«в гостях» — анализируй команды на равных условиях.\\n- Перед выводом проверь: итоговый прогноз присутствует, орфографических ошибок и пропущенных букв нет, названия сборных склоняются верно, кавычки оформлены по правилам выше.\\n\\n═══ ФОРМАТ ═══\\n\\n# [К1] — [К2]: прогноз и ставка. [Конкретный вывод, до 5 слов]\\n\\nАбзац 1: «В [N]-м туре [Турнир] «[К1]» примет «[К2]» на стадионе «[по-русски]». Стартовый свисток прозвучит в ЧЧ:ММ по московскому времени.»\\nЕсли round=null → «В матче [Турнир] «[К1]» примет «[К2]»...» (не придумывай тур, финал, стадию)\\n\\nАбзац 2-3: ТОЛЬКО факты напрямую ведущие к итоговой ставке. Строй логическую цепочку: каждый факт → почему это означает → почему ставка зайдёт. Место/очки — только если прямо подтверждают прогноз. Ни одного предложения не по теме.\\n\\n### Личные встречи — только если серия из H2H 70%+ на 8+ матчах\\n\\n**Прогноз:** [ставка] с коэффициентом X,XX\\n(жирное, без точки)\\n\\nКОМАНДЫ: все названия в «кавычках», кроме заголовка. Капслок только для устоявшихся аббревиатур (МЮ, ПСЖ, ЦСКА, СКА) — без кавычек. Полные названия типа «Ницца», «Реал», «Бавария» — всегда в «» и без капслока.\\nСТАДИОН: только по-русски. Если название стадиона содержит слово «стадион» — используй как предложный оборот без дополнительного «на стадионе»: «Муниципальный стадион Флориды» → «на Муниципальном стадионе Флориды». Если не содержит — «на стадионе «Название»». Длина: 200-350 слов.';
 
 // ── Tab switching ────────────────────────────────────────────────────────
+// Безопасно вставляет строку как одиночный JS string-литерал внутрь onclick="..."
+function jsStrLit(s){return "'"+String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'";}
+
+function toggleFavTournament(lg){
+  var favT=JSON.parse(localStorage.getItem('mp_fav_tournaments')||'{}');
+  if(favT[lg]) delete favT[lg];
+  else favT[lg]=true;
+  localStorage.setItem('mp_fav_tournaments',JSON.stringify(favT));
+  updateFavCount();
+  renderList(Object.keys(M).map(function(k){return M[k];}));
+  if(document.getElementById('navFav').classList.contains('active')) renderFavTab();
+}
+
 function toggleFav(id){
   var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
   if(favs[id]) delete favs[id];
@@ -2099,17 +2372,39 @@ function toggleFav(id){
 }
 
 function updateFavCount(){
-  var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
-  var n=Object.keys(favs).length;
+  var mode=window.SERVICE_MODE||'both';
+  var n;
+  if(mode==='preview'){
+    var favT=JSON.parse(localStorage.getItem('mp_fav_tournaments')||'{}');
+    n=Object.keys(favT).length;
+  } else {
+    var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+    n=Object.keys(favs).length;
+  }
   var sp=document.getElementById('favCount');
   if(sp){sp.textContent=n;sp.style.display=n?'inline':'none';}
 }
 
 function renderFavTab(){
-  var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
-  var ids=Object.keys(favs).map(Number);
+  var mode=window.SERVICE_MODE||'both';
   var fl=document.getElementById('favList');
   if(!fl) return;
+  if(mode==='preview'){
+    var favT=JSON.parse(localStorage.getItem('mp_fav_tournaments')||'{}');
+    var names=Object.keys(favT);
+    if(!names.length){fl.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Добавьте турниры в избранное с помощью звёздочки ★ рядом с названием турнира в списке матчей</div>';return;}
+    var h='<div style="color:#9ca3af;font-size:12px;padding:0 4px 10px">Эти турниры — список того, на что будут делаться генерации</div>';
+    names.sort().forEach(function(lg){
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border-radius:8px;margin-bottom:8px;border:1px solid #e5e5e0;padding:10px 12px">'+
+         '<span style="font-size:13px;color:#374151">'+esc(lg)+'</span>'+
+         '<button onclick="toggleFavTournament('+jsStrLit(lg)+')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#d97706;padding:2px;line-height:1;flex-shrink:0">★</button>'+
+         '</div>';
+    });
+    fl.innerHTML=h;
+    return;
+  }
+  var favs=JSON.parse(localStorage.getItem('mp_favs')||'{}');
+  var ids=Object.keys(favs).map(Number);
   if(!ids.length){fl.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Нет избранных матчей</div>';return;}
   var favMatches=ids.map(function(id){return M[id];}).filter(Boolean);
   if(!favMatches.length){fl.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:40px">Загрузите матчи чтобы увидеть избранное</div>';return;}
@@ -2317,6 +2612,8 @@ document.addEventListener('click', function(e) {
 });
 
 var CS='Фактчекер. Проверь факты превью на соответствие данным. Только реальные ошибки.\nОтвет — JSON без markdown: {"score":10,"verdict":"ок","data_issues":[],"summary":"Текст корректен."}';
+
+var FIXP='Ты — редактор-корректор готового спортивного текста про футбольный матч. Тебе передают: 1) исходный сгенерированный текст; 2) список постоянных правил и словарей замен; 3) список ранее одобренных стилевых примеров (если есть); 4) список найденных ошибок текущего текста. Твоя задача — исправить текст максимально точечно, сохранив его структуру, объём, логику, факты и авторский стиль.\n\nПРАВИЛА РАБОТЫ:\n\n1. Фактические и именные ошибки (высший приоритет). Обязательно применяй словарь замен. Примеры: «СФК Штурми» → «Штурми»; неправильное название турнира → правильное название турнира; неправильное имя тренера → правильное имя тренера; неправильное название стадиона → правильное название стадиона. Если ошибка попадает в словарь — исправление обязательно и не подлежит интерпретации.\n\n2. Жёсткие стилевые правила. Проверь текст на нарушение постоянных правил: запрещённые слова и выражения; обязательные формулировки; требования к оформлению; ограничения на повторы; требования к структуре предложений. Если правило нарушено — исправь только конкретный фрагмент, не переписывая весь абзац.\n\n3. Тонкие стилистические предпочтения. Используй ранее одобренные примеры как ориентир. Если текущая формулировка противоречит предпочтительному стилю — можешь её улучшить, но только если: смысл не изменится; фактология не изменится; текст станет ближе к примерам. Если уверенности нет — оставь исходную формулировку.\n\nОГРАНИЧЕНИЯ. Запрещено: придумывать новые факты; менять прогнозы, коэффициенты, статистику и цифры; добавлять информацию, которой нет в исходном тексте; менять структуру статьи; переписывать целые абзацы ради стилистики.\n\nПРИНЦИП РАБОТЫ. Приоритет исправлений: 1) словари и фактические исправления; 2) жёсткие правила и стоп-лист; 3) тонкие стилистические предпочтения. Исправляй только то, что действительно нарушает правила. Если фрагмент не содержит ошибок — оставляй его без изменений.\n\nГЛАВНЫЙ ПРИНЦИП: минимальное вмешательство, максимальное сохранение исходного текста, исправлять только необходимые ошибки.\n\nФОРМАТ ОТВЕТА: верни ТОЛЬКО исправленный текст целиком, без преамбулы, без markdown-обёртки вида ```, без пояснений о том, что было исправлено и почему.';
 </script>
 <!-- Publish modal -->
 <div class="modal-overlay" id="pubModal">
